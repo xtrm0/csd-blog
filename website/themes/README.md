@@ -22,3 +22,5 @@ on 2021-08-13, and then modified. Modifications are listed below.
 
 7. Added support for explicitly named "Areas" rather than
    categories.
+
+8. Set up quote authors to stay closer to the actual quotes.

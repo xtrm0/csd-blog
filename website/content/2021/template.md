@@ -73,6 +73,44 @@ int main() {
 }
 ```
 
+If you want to quote someone, simply prefix whatever they said with a
+`>`. For example:
+
+> If it is on the internet, it must be true.
+
+-- Abraham Lincoln
+
+You can also nest quotes:
+
+> > You miss 100% of the shots you don't take
+>
+> -- Wayne Gretzky
+
+-- Michael Scott
+
+Every paragraph _immediately_ after a quote is automatically right
+aligned and pressed up against the quote, since it is assumed to be
+the author/speaker of the quote. You can suppress this by adding a
+`<p></p>` right after a quote, like so:
+
+> This is a quote, whose next para is a normal para, rather than an
+> author/speaker
+
+<p></p>
+
+This paragraph is perfectly normal, rather than being forced
+right. Additionally, you could also add a `<br />` right beside the
+`<p></p>` to give some more breathing room between the quote and the
+paragraph.
+
+In the author notifications above, btw, note how the double-hyphen
+`--` automatically becomes the en-dash (--) and the triple-hyphen
+`---` automatically becomes the em-dash (---). Similarly, double- and
+single-quotes are automagically made into "smart quotes", and the
+ellipsis `...` is automatically cleaned up into an actual ellipsis...
+
+---
+
 You can add arbitrary horizontal rules by simply placing three hyphens
 on a line by themselves.
 
