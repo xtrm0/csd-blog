@@ -1,0 +1,23 @@
+{% macro person(person, addn="") %}
+{% set person_url = false %}
+{% set person_target = "target=_blank" %}
+{% if person is object %}
+  {% set person_name = person.name %}
+  {% if person.url %}{% set person_url = person.url %}{% endif %}
+{% elif person is string %}
+  {% set person_name = person %}
+{% else %}
+{{ "Invalid person" | throw }}
+{% endif %}
+{% if not person_url %}
+  {% if config.extra.committee_urls | filter(attribute="name", value=person_name) %}
+    {% set person_url = config.extra.committee_urls | filter(attribute="name", value=person_name) | map(attribute="url") | first %}
+  {% else %}
+    {% set person_url = "#" %}
+    {% set person_target = "" %}
+  {% endif %}
+{% endif %}
+<a href="{{ person_url }}" {{person_target}}>
+  {{ person_name }}{{ addn }}
+</a>
+{% endmacro person %}
