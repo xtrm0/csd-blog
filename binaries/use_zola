@@ -1,0 +1,32 @@
+#! /bin/sh
+
+dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+
+contains() {
+    string="$1"
+    substring="$2"
+    if test "${string#*$substring}" != "$string"
+    then
+        return 0
+    else
+        return 1
+    fi
+}
+
+if [ ! -x "${dir}/zola" ]; then
+
+
+    if contains "$(uname)" "Darwin"; then
+        # MacOS
+        (cd "$dir" && tar xzf zola-*-x86_64-apple-darwin.tar.gz);
+    elif contains "$(uname)" "Linux"; then
+        # Linux
+        (cd "$dir" && tar xzf zola-*-x86_64-unknown-linux-gnu.tar.gz);
+    else
+        # Unknown
+        echo "Unknown platform/OS $(uname); script binaries/use_zola needs to be updated."
+    fi
+
+fi
+
+"${dir}/zola" "$@"

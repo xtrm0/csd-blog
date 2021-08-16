@@ -10,11 +10,11 @@ hosted at **TODO**.
 2. Fork this repository (click the fork button on the GitHub
    interface) to your user account. This will make
    `https://github.com/harrybovik/csd-phd-blog`.
-3. The rest of these instructions assume you are on Linux. If you are
-   not on Linux, you can use the Andrew Linux machines, or set up a
-   VM, or adapt the instructions to the OS of your choice. If you have
-   working instructions for a different OS, improvements to these
-   instructions would be appreciated.
+3. The rest of these instructions assume you are on Linux or MacOS. If
+   you are not on either of these, you can use the Andrew Linux
+   machines, or set up a VM, or adapt the instructions to the OS of
+   your choice. If you have working instructions for a different OS,
+   improvements to these instructions would be appreciated.
 4. Clone the repository locally using `git clone
    https://github.com/harrybovik/csd-phd-blog`.
 5. Copy the `template.md` file from root of the repository into
@@ -112,3 +112,7 @@ comes from a student:
   repository works via a site-generator, if the particular web-hosting
   changes, all that would be necessary to change is _where_ the
   produced HTML files are dropped into.
+
+## Credits
+
+- Static site generator and theme setup - Jay Bosamiya (@jaybosamiya)
