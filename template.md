@@ -19,7 +19,12 @@ tags = ["foobar", "cache-invalidation"]
 # However, adding a URL is strongly preferred
 author = {name = "Your Name Here", url = "YOUR HOME PAGE URL HERE" }
 # The committee specification is simply a list of strings.
-committee = [ "Committee Member 1's Full Name", "Committee Member 2's Full Name" ]
+# However, you can also make an object with fields like in the author.
+committee = [
+    "Committee Member 1's Full Name",
+    "Committee Member 2's Full Name",
+    {name = "Harry Q. Bovik", url = "http://www.cs.cmu.edu/~bovik/"},
+]
 +++
 
 After filling in the above "top-matter", as per instructions provided
