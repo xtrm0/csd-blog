@@ -7,7 +7,7 @@ fi
 
 git fetch origin "pull/${1}/head:pr-${1}" || exit 1
 git checkout "pr-${1}" || exit 2
-git pull || exit 3
+git pull origin "refs/pull/${1}/head" || exit 3
 
 cd website/ || exit 255
 ../binaries/use_zola serve
