@@ -47,14 +47,17 @@ hosted at **TODO**.
    praise, and (hopefully) acceptance to come in. If not accepted,
    make changes, and repeat previous steps until accepted by
    committee.
-9. Commit your changes to your fork of the repository (`git commit -am
+9. Have the committee fill out the blog post approval form,
+   and send the form to the Computer Science Department Doctoral
+   Program Manager.
+10. Commit your changes to your fork of the repository (`git commit -am
    'Blogpost by Harry Bovik'`) and push changes to GitHub (`git
    push`).
-10. Make a pull request to the official repository by clicking the
+11. Make a pull request to the official repository by clicking the
     pull request button, adding all requested information.
-11. Wait for the web-admin to confirm that everything is on order and
+12. Wait for the web-admin to confirm that everything is on order and
     pull your changes into the main repository.
-12. Rejoice!
+13. Rejoice!
 
 ## Instructions for the committee
 
@@ -72,14 +75,15 @@ student.
    the scripts/instructions.
 3. Provide reviews to students (via email).
 4. Rinse and repeat, until post is acceptable.
+5. Fill out blog post approval form.
 
 ## Instructions for the web-admin
 
-The following steps need to be run (in order) whenever a pull request
-comes from a student:
+The following steps need to be run (in order) whenever notified by
+the Computer Science Department Doctoral Program Manager that a
+blog post has been approved:
 
-1. Confirm that the particular blogpost has been approved
-   (confirmation from committee (?))
+1. Find the post's corresponding pull request in the repository.
 2. Run `./admin_server.sh ID` (where ID is the pull-request number on
    the GitHub interface) to grab a local copy of the student's
    changes, and generate the website on the local machine. This will
