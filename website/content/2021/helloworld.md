@@ -19,7 +19,10 @@ tags = ["hello", "world", "first"]
 # However, adding a URL is strongly preferred
 author = {name = "David M Kahn"}
 # The committee specification is simply a list of strings.
-committee = [ "Jay Bosamiya", "Venkatesan Guruswami" ]
+committee = [
+    {name = "Jay Bosamiya", url = "https://www.jaybosamiya.com/"}, 
+    "Venkatesan Guruswami"
+]
 +++
 
 # Hello World!
