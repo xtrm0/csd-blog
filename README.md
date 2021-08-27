@@ -47,9 +47,10 @@ hosted at **TODO**.
    praise, and (hopefully) acceptance to come in. If not accepted,
    make changes, and repeat previous steps until accepted by
    committee.
-9. Have the committee fill out the blog post approval form,
+9. Once accepted, have the committee fill out the blog post approval form,
    and send the form to the Computer Science Department Doctoral
-   Program Manager.
+   Program Manager. A blank version of this form can be found at the
+   root of the blog repository as `WritingSkillsApprovalForm.pdf`.
 10. Commit your changes to your fork of the repository (`git commit -am
    'Blogpost by Harry Bovik'`) and push changes to GitHub (`git
    push`).
@@ -75,7 +76,9 @@ student.
    the scripts/instructions.
 3. Provide reviews to students (via email).
 4. Rinse and repeat, until post is acceptable.
-5. Fill out blog post approval form.
+5. Fill out blog post approval form. A blank version of this form can
+   be found at the root of the blog repository as
+   `WritingSkillsApprovalForm.pdf`.
 
 ## Instructions for the web-admin
 
