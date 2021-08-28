@@ -1,7 +1,7 @@
 # CMU CSD PhD Blog
 
 This repository holds the source files for the CMU CSD PhD blog,
-hosted at **TODO**.
+hosted at https://www.cs.cmu.edu/~csd-phd-blog/
 
 ## Instructions for the student
 
