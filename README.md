@@ -51,9 +51,9 @@ hosted at https://www.cs.cmu.edu/~csd-phd-blog/
    and send the form to the Computer Science Department Doctoral
    Program Manager. A blank version of this form can be found at the
    root of the blog repository as `WritingSkillsApprovalForm.pdf`.
-10. Commit your changes to your fork of the repository (`git commit -am
-   'Blogpost by Harry Bovik'`) and push changes to GitHub (`git
-   push`).
+10. Commit your changes to your fork of the repository (`git add
+    content/YEAR/BLOGNAME.md` and `git commit -m 'Blogpost by Harry
+    Bovik'`) and push changes to GitHub (`git push`).
 11. Make a pull request to the official repository by clicking the
     pull request button, adding all requested information.
 12. Wait for the web-admin to confirm that everything is on order and
