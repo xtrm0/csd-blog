@@ -9,4 +9,4 @@ rm -f ../generated-website.zip
 zip -r ../generated-website.zip public/
 cd ../
 
-echo "generated-website.zip has been generated. Please put this onto AFS at the right location."
+echo "generated-website.zip has been generated. Please put this onto AFS at the right location (/afs/cs.cmu.edu/project/csd-phd-blog/www)."
