@@ -116,7 +116,7 @@ The important lesson here is that we had to translate indices (the *lingua franc
 
 This works because users often have some idea what one operation should do in the face of concurrent operations. E.g., typing after a word should insert the new characters at that word, independently of other users' typing at the beginning of the document. If you can capture this intuition, the resulting operations won't conflict.
 
-> **Remark.** Some papers (TODO) attempt to derive CRDT semantics automatically from the semantics of their closest ordinary data type. Principle 2 advocates an opposite approach, in which we reconsider what operations mean to the user, potentially ignoring their ordinary (non-CRDT) meanings entirely. This makes the CRDT design process require more thought, but also gives more legible and flexible results.
+> **Remark.** Some papers (TODO: Riley, newer one like Riley, linearization papers like OpSets or the Splash one) attempt to derive CRDT semantics automatically from the semantics of their closest ordinary data type. Principle 2 advocates an opposite approach, in which we reconsider what operations mean to the user, potentially ignoring their ordinary (non-CRDT) meanings entirely. This makes the CRDT design process require more thought, but also gives more flexible and understandable results.
 
 ## Registers
 
@@ -157,7 +157,7 @@ Another option is to pick a value arbitrarily but deterministically.  E.g., the 
 
 TODO: figure: Pushpin LWW + MVR.
 
-In general, you can use an arbitrary deterministic function of the set. Examples:
+In general, you can define the getter using an arbitrary deterministic function of the set of values. Examples:
 - If the values are colors, you can average their RGB coordinates. That seems like fine behavior for pixels in a collaborative whiteboard. TODO: illustration
 - The **Enable-Wins Flag** CRDT is a boolean-valued register where the external value is $true$ if the state contains at least one $true$. This means that we give a preference to $set(true)$ over concurrent $set(false)$ operations ("true-wins semantics"). The **Disable-Wins Flag** is the opposite.
 
@@ -182,6 +182,8 @@ Examples:
 - TODO: Add-wins set. Ex for archiving documents.
 - TODO: LwwMap. Rich text / Quill ex?
 - TODO: file system example?
+
+> If you want a non-lazy map, in which keys have explicit membership and can be deleted, you can use a lazy map plus an add-wins set to track which keys are present.
 
 ### Collections of CRDTs
 
@@ -231,6 +233,8 @@ Concurrent+causal for-each operations are novel as far as I'm aware. They are ba
 
 > If you do want to use the semidirect product to optimize, be aware that it is not as general as it could be. E.g., the recipe example can be optimized, but not using the semidirect product. I'll write up a tech report about a more general approach at some point.
 
+TODO: remark: more general to split into concurrent for-each and causal for-each. That's how you'd implement it usually (do for-each locally, then send concurrent for-each op). I won't change the principle unless I find a good use-case.
+
 TODO: Remark: dual view: controller for the for-each part plus oppositely-adjusted state. E.g. for scaling, or reversible list? Perhaps contrast with that approach---ours should be easier, in comparison to e.g. rich-text CRDT using invisible formatting characters (direct construction approach).
 
 ## Summary: Principles of CRDT Design
@@ -245,18 +249,117 @@ Now let's get real: we're going to design a CRDT for a collaborative spreadsheet
 
 As practice, you can try sketching a design yourself before reading any further; the rest of the section describes how I would do it.
 
-> There's no one right answer, so don't worry if your ideas differ from mine! The point of this blog post is to give you confidence to design and tweak CRDTs like this yourself, not to dictate "the one true spreadsheet CRDT (TM)".
+> There's no one right answer! The point of the blog post is to give you confidence to design and tweak CRDTs like this yourself, not to dictate "the one true spreadsheet CRDT".
 
-TODO
+### Design Walkthrough
 
-Column objects with width, row likewise, cells as map from (row, column) to cell.  Cell has register for contents, others for formatting. Contents are array of tokens, with immutable positions for obvious reason; note not collaborative text, although this is a choice.
+To start off, consider an individual cell. Fundamentally, it consists of a text string. We could make this a text (list) CRDT, but usually, you don't edit individual cells collaboratively; instead, you type the new value of the cell, hit enter, and then its value shows up for everyone else. This suggests instead using a register, e.g., an LWW register.
 
-Causal+concurrent for-each for row, column formatting. Movable rows, columns. Also mention deletes.
+Besides the text content, a cell can have properties like its font size, whether word wrap is enabled, etc. Since changing these properties are all independent operations, following Principle 4, they should have independent state. This suggests using a CRDT object to represent the cell, with a different CRDT instance field for each property. In pseudocode:
+```ts
+class Cell {
+  content: LwwRegister<string>;
+  fontSize: LwwRegister<number>;
+  wordWrap: EnableWinsFlag;
+  // ...
+}
+```
 
-Suggest further tweaks, phrased as user requests? Goal is that reader can "solve" them.
+The spreadsheet itself is a grid of cells. Each cell is indexed by its location (row, column), suggesting a map from locations to cells. (A 2D list could work too, but then we'd have to put rows and columns on an unequal footing, which might cause trouble later.) Thus let's use a `Cell`-CRDT-valued lazy map.
+
+What about the map keys? It's tempting to use conventional row-column indicators like "A1", "B3", etc. However, then we can't easily insert or delete rows/columns, since doing so renames other cells' indicators. (We could try making a "rename" operation, but that violates Principle 2, since it does not match the user's original intention: inserting/deleting a different row/column.)
+
+Instead, let's identify cell locations using pairs (row, column), where the "row" means "the line of cells horizontally adjacent to this cell", independent of that row's literal location (1, 2, etc.), and likewise for "column". That is, we create an opaque `Row` object to represent each row, and likewise for columns, then use pairs (`Row` object, `Column` object) for our map keys.
+
+The word "create" suggests using unique sets (Principle 1), although since the rows and columns are ordered, we actually want CRDTs. Hence our app state looks like:
+```ts
+rows: ListCrdt<Row>;
+columns: ListCrdt<Column>;
+cells: LazyCrdtValueMap<[row: Row, column: Column], Cell>;
+```
+Now you can insert or delete rows and columns by calling the appropriate operations on `columns` and `rows`, without affecting the `cells` map at all. (Due to the lazy nature of the map, we don't have to explicitly create cells to fill a new row or column; they implicitly already exist.)
+
+Speaking of rows and columns, there's more we can do here. For example, rows have editable properties like their height, whether they are hidden, etc. These properties are independent, so they should have independent states (Principle 4). This suggests making `Row` into a CRDT object class:
+```ts
+class Row {
+  height: LwwRegister<number>;
+  isHidden: EnableWinsFlag;
+  // ...
+}
+```
+
+Likewise, we should be able to edit the position of a row/column, i.e., move it around. Such movements are intuitively independent of any other changes: if I edit a cell while you move its row around, my edits should show up normally, in the new destination row. This again suggest an independent state for the position of a row. So instead of using a literal list CRDT, we should use the movable list design described [above](TODO): a set of pairs (position, value), where "position" is an LWW register storing a CRDT-list-style immutable position.
+```ts
+class MovableList<T> {
+  state: UniqueSet<[position: LwwRegister<ListCrdtPosition>, value: T];
+}
+
+rows: MovableList<Row>;
+columns: MovableList<Column>;
+```
+
+We can also perform operations on every cell in a row, like changing the font size of every cell. For each such operation, we have three options:
+1. Use a causal for-each operation (Principle 3a). This will affect all current cells in the row, but not any cells that are created concurrently (because a new column is inserted). E.g., causal for-each is the safe choice for a "clear" operation that sets every cell's content to "", since that way, you don't lose data entered into a concurrently-created cell.
+2. Use a concurrent+causal for-each operation (Principle 3b). This will affect all current cells in the row *and* any those created concurrently. E.g., I'd recommend this for changing the font size or other formatting properties of a whole row, so that concurrently-created cells don't become mismatched.
+3. Use an independent state that affects the row itself, not the cells (Principle 4). E.g., we're already using `Row.height` for the height of a row, instead of using a separate height CRDT for each cell.
+
+> **Remark.** Note that the for-each loops loop over every cell in the row, even blank cells that have never been used. This has the downside of making all those cells explicitly exist in the lazy map, increasing memory usage. We tolerate this since our focus is to pin down the semantics, not give an efficient implementation. Once the semantics are pinned down, though, you are free to optimize the implementation.  So long as you can prove that the app's behavior is unchanged, it's still a CRDT with your desired semantics.  This approach is probably easier and more user-friendly than trying to construct an efficient CRDT from scratch and prove commutativity directly, without a solid semantics to guide you.
+
+Lastly, let's take another look at cell contents. Before we said it was just a string, but it's more interesting than that: cells can reference other cells in formulas, e.g., "A2 + B3". If a column is inserted before column A, these references should update to "B2 + C3", since they intuitively describe a *cell*, not the indicators themselves. So, we should store them using a pair `[row: Row, column: Column]`, like the map keys. The content then becomes an array of tokens, which can be literal strings or cell references:
+```ts
+class Cell {
+  content: LwwRegister<string | [row: Row, column: Column]>;
+  fontSize: LwwRegister<number>;
+  wordWrap: EnableWinsFlag;
+  // ...
+}
+```
+
+### Finished Design
+
+In summary, the state of our spreadsheet is as follows.
+```ts
+// ---- CRDT Objects ----
+class Row {
+  height: LwwRegister<number>;
+  isHidden: EnableWinsFlag;
+  // ...
+}
+
+class Column {
+  width: LwwRegister<number>;
+  isHidden: EnableWinsFlag;
+  // ...
+}
+
+class Cell {
+  content: LwwRegister<string | [row: Row, column: Column]>;
+  fontSize: LwwRegister<number>;
+  wordWrap: EnableWinsFlag;
+  // ...
+}
+
+class MovableList<T> {
+  state: UniqueSet<[position: LwwRegister<ListCrdtPosition>, value: T];
+}
+
+// ---- App state ----
+rows: MovableList<Row>;
+columns: MovableList<Column>;
+cells: LazyCrdtValueMap<[row: Row, column: Column], Cell>;
+```
+
+Note that I never mentioned correctness (eventual consistency) or commutativity of concurrent operations. Because we assembled the design from trivially-correct pieces, it is also trivially correct. Plus, it should be straightforward to reason out what would happen in various concurrency scenarios.
+
+As exercises, here are some further tweaks you can make to this design, phrased as user requests:
+1. "I'd like to have multiple sheets in the same document, accessible by tabs at the bottom of the screen, like in Excel." Hint: >! Use a list of CRDT objects.
+2. "I've noticed that if I change the font size of a cell, while at the same time someone else changes the font size for the whole row, sometimes their change overwrites mine. I'd rather keep my change, since it's more specific." Hint: >! Use a register with a custom getter.
 
 # Conclusion
 
+In this blog post, TODO
+
+TODO: CRDTs covered, not covered (e.g. optimizations, including weird semantics that arise from optimizations only (picture from Automerge paper), or tree (tricky, haven't decided what this is about myself yet)).
 
 TODO (put somewhere):
 
@@ -267,3 +370,5 @@ TODO (put somewhere):
 - links for principles
 - Counter somewhere? E.g. in considering user intention (contrast with register)?
 - we -> I
+- more figures
+- Principle 2 for states as well?  (What does a value mean to the user. E.g. A2 in a spreadsheet means the cell, even if it moves around.)
