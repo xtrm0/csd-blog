@@ -49,7 +49,7 @@ TODO: also network-agnostic (open source-able?), works offline, E2EE - link to l
 
 TODO: difficulty: designing. Main goal is eventual consistency (correctness), proved with commutativity or as function of operation history DAG (illustrate, show hardness be referencing e.g. spreadsheet?). But it's not always clear *how* a CRDT resolves conflicts (semantics), i.e., what happens in a given situation. Might not be what you expect; hard to modify if not an expert. E.g. semidirect - can make things we don't understand semantically.
 
-TODO: this post goals: explain existing designs in terms of a few simple principles, can be understood without any nontrivial proofs. Give confidence to tweak or make your own. Necessary if making your own app so you can make it do what you want, respond to user requests. Illustrative pic: user asking for a fix (e.g. moving a column while editing a cell), dev responding sorry. Cite Figma blog post?
+TODO: this post goals: explain existing designs in terms of a few simple principles, can be understood without any nontrivial proofs. "(Op-based) CRDTs in N minutes." Give confidence to tweak or make your own. Necessary if making your own app so you can make it do what you want, respond to user requests. Illustrative pic: user asking for a fix (e.g. moving a column while editing a cell), dev responding sorry. Cite Figma blog post?
 
 # Basic Designs
 
@@ -143,7 +143,9 @@ In summary, the implementation of $set(x)$ is: for each element $e$ in the uniqu
 
 Loops of the form "for each element of a collection, do something" are common in programming. We just saw a way to extend them to CRDTs: "for each element of a unique set, do some CRDT operation". We call this a **causal for-each** because it affects elements that were added to the unique set causally prior to the for-each operation. It's useful enough that we make it our next principle of CRDT design:
 
-**Principle 3a.** For operations that do something "for each" element of a collection, one option is to use a *causal for-each operation* on a unique set.
+**Principle 3a.** For operations that do something "for each" element of a collection, one option is to use a *causal for-each operation* on a unique set (or list CRDT).
+
+TODO: resettable counter? Only if can find good use case.
 
 ### Getting the Value
 
@@ -177,8 +179,8 @@ Examples:
 A CRDT-valued map is like a CRDT object but with potentially infinite instance fields, one for each allowed map key. The simplest version is a "lazy map", like [Apache Commons' LazyMap](https://commons.apache.org/proper/commons-collections/apidocs/org/apache/commons/collections4/map/LazyMap.html): every key/value pair is implicitly always present in the map, although values are only explicitly constructed in memory as needed, using a predefined factory method.
 
 Examples:
-- TODO: Add-wins set
-- TODO: LwwMap
+- TODO: Add-wins set. Ex for archiving documents.
+- TODO: LwwMap. Rich text / Quill ex?
 - TODO: file system example?
 
 ### Collections of CRDTs
@@ -196,25 +198,60 @@ Examples:
 - TODO: todo-list (list of text).
 - TODO: rich text (list of rich objects).
 
-### Composition Principles
+### Using Composition
 
-Principle: independent operations should act on indie state.
+You can use the above composition techniques and core CRDTs to design CRDTs for many collaborative apps. Choosing the exact structure, and how operations and user-visible state map onto that structure, is the main challenge.
 
-Ex: movable list (later); image shape (right: all separate; wrong: all one register, unless that's what you want; wrong: bottom and right instead of width and height, by this principle and Principle 2.); document names (set of pairs (name, doc), not implicit map, so that you can change names. Also needed to dynamically init documents, ref Yjs issue?.)
+A good starting point is to design an ordinary (non-CRDT) data model, using objects, collections, etc., then convert it to a CRDT version. So variables become registers, objects become CRDT objects, lists become list CRDts, sets become unique sets or add-wins sets, etc. You can then tweak the design as needed to accommodate extra operations or fix weird concurrent behaviors.
 
-Principle: causal+concurrent for-each. Ex: rich-text formatting. This is novel (what semidirect product is trying to be).  (Own section, or move higher?)
+To accommodate as many operations as possible while preserving user intention, we recommend:
+
+**Principle 4.** Independent operations (in the user's mind) should act on independent state.
+
+Examples:
+- TODO: movable list. Give motivating ex. Ref paper.
+- TODO: image shape (right: all separate; wrong: all one register, unless that's what you want; wrong: bottom and right instead of width and height, by this principle and Principle 2.)
+- TODO: document names (set of pairs (name, doc), not implicit map, so that you can change names. Also needed to dynamically init documents, ref Yjs issue?.)
+
+## New: Concurrent+Causal For-Each Operations
+
+There's one more trick I want to show you. Sometimes, when performing a for-each operation on a unique set or list CRDT, you don't just want to affect existing (casually prior) elements. You also want to affect *elements that are added/inserted concurrently*.
+
+For example:
+- TODO: rich-text formatting. Illustrate.
+- TODO: recipe scaling. Illustrate, silly example from talk.
+
+I call such an operation a **concurrent+causal for-each operation**. Formally, TODO (sending op, recipients act on concurrently added ops received both before and after).
+
+To accomodate the above examples, I propose:
+
+**Principle 3b.** For operations that do something "for each" element of a collection, another option is to use a *concurrent+causal for-each operation* on a unique set (or list CRDT).
+
+Concurrent+causal for-each operations are novel as far as I'm aware. They are based on a paper I, Heather Miller, and Christopher Meiklejohn wrote last year, on a composition technique we call the *semidirect product*. Unfortunately, the paper is rather obtuse, and it doesn't make clear what the semidirect product is doing intuitively (since we didn't understand this ourselves!). My current opinion is that it is an optimized way of implementing concurrent+causal for-each operations. Unless you're making an optimized CRDT implementation, you don't need to know any more.
+
+> If you do want to use the semidirect product to optimize, be aware that it is not as general as it could be. E.g., the recipe example can be optimized, but not using the semidirect product. I'll write up a tech report about a more general approach at some point.
+
+TODO: Remark: dual view: controller for the for-each part plus oppositely-adjusted state. E.g. for scaling, or reversible list? Perhaps contrast with that approach---ours should be easier, in comparison to e.g. rich-text CRDT using invisible formatting characters (direct construction approach).
 
 ## Summary: Principles of CRDT Design
 
-Unique set; causal for-each; causal+concurrent for-each; indie ops act on indie state (objects, maps, sets of CRDTs).
+For easy reference, here are our principles of CRDT design.
 
-# A Collaborative Spreadsheet
+TODO: repeat principles verbatim.
 
-CRDT-as-data-model (not just basic data structures).
+# Case Study: A Collaborative Spreadsheet
+
+Now let's get real: we're going to design a CRDT for a collaborative spreadsheet editor (think Google Sheets).
+
+As practice, you can try sketching a design yourself before reading any further; the rest of the section describes how I would do it.
+
+> There's no one right answer, so don't worry if your ideas differ from mine! The point of this blog post is to give you confidence to design and tweak CRDTs like this yourself, not to dictate "the one true spreadsheet CRDT (TM)".
+
+TODO
 
 Column objects with width, row likewise, cells as map from (row, column) to cell.  Cell has register for contents, others for formatting. Contents are array of tokens, with immutable positions for obvious reason; note not collaborative text, although this is a choice.
 
-Causal+concurrent for-each for row, column formatting. Movable rows, columns.
+Causal+concurrent for-each for row, column formatting. Movable rows, columns. Also mention deletes.
 
 Suggest further tweaks, phrased as user requests? Goal is that reader can "solve" them.
 
@@ -223,12 +260,10 @@ Suggest further tweaks, phrased as user requests? Goal is that reader can "solve
 
 TODO (put somewhere):
 
+- CRDT-as-data-model (not just basic data structures). In composition? Or is it obvious enough? (Perhaps in intro as contrast to prior work. Without the prior bias, it's obvious to do things this way.)
 - Targetting semantics (what to do when stuff happens), not implementation like most works.  Implementation comes second; can sometimes optimize (especially memory, e.g. a counter). We describe our semantics in terms of operation implementation because that's often simplest, but you might end up using a different implementation.  That's also a bit different from the abstract semantics (define as function of causal history), although we give those too where easy (e.g. unique set).
-- Resettable counter
-- Recipe scaling example? Or just do spreadsheet?
-- AWSet?  E.g. for set of non-archived documents (need ability to restore multiple times).
-- Causal order/concurrency; causal order delivery.
-- raw approach: unique set of ops (POLog), function on that history.  So (allowing causal info) unique set is "CRDT-complete", but hard to understand and inefficient.
 - Principles: views; not everything is shared).  Used in flash card, but seems too early to introduce.
 - Clarify existing CRDTs vs novel ones (spreadsheet, concurrent for-each).
 - links for principles
+- Counter somewhere? E.g. in considering user intention (contrast with register)?
+- we -> I
