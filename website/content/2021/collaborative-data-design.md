@@ -27,29 +27,48 @@ committee = [
 ]
 +++
 
-# Introduction
+# Introduction: Collaborative Apps via CRDTs
 
-Suppose you're building a collaborative app, along the lines of Google Docs/Sheets/Slides, Figma, Notion, etc. One challenge you'll face is the actual collaboration: when one user changes the shared state, their changes need to show up for every other user. For example, if multiple users type at the same time in a text field, the result should reflect all of their changes and be consistent (the same for all users).
+Suppose you're building a collaborative app, along the lines of Google Docs/Sheets/Slides, Figma, Notion, etc. One challenge you'll face is the actual collaboration: when one user changes the shared state, their changes need to show up for every other user. For example, if multiple users type at the same time in a text field, the result should reflect all of their changes and be consistent (identical for all users).
 
-An easy solution would use a server for all operations. When a user wants to make a change, like typing a letter, they send a request to the server. The server processes their request, updates its copy of the state, and sends a description of the update to all users. All users then update their view of the state to reflect this change, including the original typer.
-
-This solution is simple, works for any kind of data, and trivially ensures that all users see a consistent state. However, it is slow: between the user performing an operation (e.g. a key press) and seeing its effect, they must wait for a round-trip to the server, which could take several 100 ms. Meanwhile, users notice latency starting at around TODO ms. Also, if you're not careful, users might see weird behavior, like their text ending up in the wrong place because someone else typed in front of them.
-
-TODO: gif/something?: typing in ssh.  "Like typing into a sluggish ssh instance."
-
-You can't fix the latency the usual way---using multiple servers around the world so every user has one close by---because all users editing the same document must use the same server. And of course, this server-first solution doesn't work offline or keep user data private.
-
-## CRDTs: Data Structures for Collaborative Apps
-
-*Conflict-free Replicated Data Types (CRDTs)* provide an alternative solution. These are data structures that look like ordinary data structures (maps, sets, text strings, etc.), except that they are collaborative: when a user updates their copy of a CRDT, their changes automatically show up for everyone else. Unlike with the above server-first solution, a user's local copy of a CRDT updates immediately when they make a change. The CRDT then syncs up with other users' copies in the background, eventually informing them of the change.
+*Conflict-free Replicated Data Types (CRDTs)* provide a solution to this challenge. They are data structures that look like ordinary data structures (maps, sets, text strings, etc.), except that they are collaborative: when one user updates their copy of a CRDT, their changes automatically show up for everyone else. Each user sees their own changes immediately, while under the hood, the CRDT broadcasts a description of their changes to everyone else; those other users see it as soon as they receive the message.
 
 TODO: example/diagram (from talk?)
 
-TODO: also network-agnostic (open source-able?), works offline, E2EE - link to local-first blog post. Also mention Collabs, link to demos.
+Note that it's possible for multiple users to make changes at the same time, e.g., both typing at once. Since each user sees their own changes immediately, their views of the document will temporarily diverge. However, CRDTs guarantee that once the users receive each others' messages, they'll see identical document states again: this is the definition of **CRDT correctness**. Ideally, this state will also be "reasonable", i.e., it will incorporate both of their edits in the way that the users expect, without requiring any git-style manual merging.
 
-TODO: difficulty: designing. Main goal is eventual consistency (correctness), proved with commutativity or as function of operation history DAG (illustrate, show hardness be referencing e.g. spreadsheet?). But it's not always clear *how* a CRDT resolves conflicts (semantics), i.e., what happens in a given situation. Might not be what you expect; hard to modify if not an expert. E.g. semidirect - can make things we don't understand semantically.
+> In distributed systems terms, CRDTs are Available, Partition tolerant, and have Strong Eventual Consistency.
 
-TODO: this post goals: explain existing designs in terms of a few simple principles, can be understood without any nontrivial proofs. "(Op-based) CRDTs in N minutes." Give confidence to tweak or make your own. Necessary if making your own app so you can make it do what you want, respond to user requests. Illustrative pic: user asking for a fix (e.g. moving a column while editing a cell), dev responding sorry. Cite Figma blog post?
+TODO: advantages of CRDTs specifically (no server---open source, works offline, E2EE). Note possibility of long divergence times, in which case reasonable conflict resolution really matters. Show examples of failure? (E.g. Google Docs "disconnected", Dropbox failing to manually merge files like in Geoffrey Litt tweet.) Link to local-first blog post, Collabs, Collabs demos, Strange Loop talk.
+
+## The Challenge: Designing CRDTs
+
+Having read all that, let's say you want to build a collaborative app using CRDTs. All you need is a CRDT representing your app's state, a frontend UI, and a network of your choice (or a way for users to pick the network themselves). But where do you get a CRDT for your specific app?
+
+If you're lucky, it's described in a [paper](TODO), or even better, implemented in a production-ready [library](TODO). But these tend to be simple or one-size-fits-all data structures: maps, text strings, unstructured JSON, etc. You can usually rearrange your app's state to make it fit in these CRDTs; and if users make changes at the same time, CRDT correctness guarantees that you'll get *some* consistent result. However, it might not be what you or your users expect. Worse, you have little leeway to customize this behavior.
+
+TODO: figure: JSON paper weird todo-list behavior (not what you expect, will look weird to users too).
+
+TODO: demo user Q&A asking for a change in the conflict-resolution, and you just reply "sorry".
+
+TODO: citations to blog posts (Figma, LWW one?) mentioning need to customize conflict resolution? Seems obviously important for any serious product.
+
+This blog post will instead teach you how to design CRDTs from the ground up. I'll present a few simple CRDTs that are obviously correct (no mathematical proofs involved), plus ways to compose them together into complicated whole-app CRDTs that are still obviously correct. I'll also present principles of CRDT design that should help guide you through the process. Ultimately, I hope that you will gain not just an understanding of some existing CRDT designs, but also the confidence to tweak them and create your own.
+
+## Other Approaches
+
+The approach described in this blog post is my own unique way of thinking about CRDTs. I'm not aware of existing works that explain things precisely this way, although (TODO: composition papers) describe CRDT composition techniques.
+
+Some more traditional approaches:
+1. TODO: commutativity approach. Proof is barrier to entry (hard to invent new ones or tweak, if not a math/CRDT person already); not always clear what they're doing, hence might not be what you expect (e.g. semidirect).
+2. TODO: direct semantics approach (Burckhardt paper, pure op-based). Hard to do; if I gave you a causal history of spreadsheet ops, could you tell me what the answer is supposed to be? (Illustrate with DAG?)
+3. TODO: derive from sequential specifications. OpSets, Riley paper, other similar paper, SECROs. Misses out on ability to make choices; not clear what it's doing (Riley = complicated, OpSets, SECROs = mysterious).
+
+TODO: semantics vs implementation. Commutativity & sequential approaches combines the two, sometimes to the detriment of semantics comprehensibility/usability (e.g. Riak observed-resets, OpSets, semidirect). Causal history approach does just semantics, but in an abstract way (becomes hard to tell what will happen given a history of ops; only for the mathematically inclined, e.g., set and notation heavy). I advocate establishing semantics first using my approach (which doubles as a first implementation and is designed to be fully legible), then if necessary, optimize with a construction that you can prove (or experimentally verify) is equivalent to the original - good practice for optimization in general. E.g. counter-as-unique-set (here) vs as literal counter - give with collaborative app example.
+
+# Network Model
+
+TODO: broadcast messaging, arbitrary delays/reordering; causal order & causal order delivery; two definitions of correctness (direct SEC; commuting concurrent ops). For our designs, either verification is trivial.
 
 # Basic Designs
 
@@ -63,7 +82,7 @@ Formally, the operations on the set are:
 
 When viewing the set, you ignore the tags and just list out the data values $x$, keeping in mind that (1) they are not ordered (at least not consistently across different users), and (2) there may be duplicates.
 
-> **Example.** In a flash card app, you could represent the deck of cards using a unique set, using $x$ to hold the flash card's value (e.g., its front and back strings). Users can edit the deck by adding a new card or deleting an existing one, and duplicate cards are allowed. Note that we have no info about the order of cards; you could perhaps sort them alphabetically in editing mode, and randomly (independently for each player) in practice mode.
+> **Example.** In a flash card app, you could represent the deck of cards using a unique set, using $x$ to hold the flash card's value (e.g., its front and back strings). Users can edit the deck by adding a new card or deleting an existing one, and duplicate cards are allowed. Note that the collaborative state is just the *set* of cards; there is no ordering info. You could perhaps sort them alphabetically in editing mode (to make them consistent), and randomly in practice mode (deliberately inconsistent).
 
 It is obvious that the state of the set, as seen by a specific user, is always the set of elements for which they have received an $add$ message but no $delete$ messages. This holds regardless of the order in which they receive concurrent messages. Thus the unique set is a CRDT.
 
@@ -363,9 +382,6 @@ TODO: CRDTs covered, not covered (e.g. optimizations, including weird semantics 
 
 TODO (put somewhere):
 
-- CRDT-as-data-model (not just basic data structures). In composition? Or is it obvious enough? (Perhaps in intro as contrast to prior work. Without the prior bias, it's obvious to do things this way.)
-- Targetting semantics (what to do when stuff happens), not implementation like most works.  Implementation comes second; can sometimes optimize (especially memory, e.g. a counter). We describe our semantics in terms of operation implementation because that's often simplest, but you might end up using a different implementation.  That's also a bit different from the abstract semantics (define as function of causal history), although we give those too where easy (e.g. unique set).
-- Principles: views; not everything is shared).  Used in flash card, but seems too early to introduce.
 - Clarify existing CRDTs vs novel ones (spreadsheet, concurrent for-each).
 - links for principles
 - Counter somewhere? E.g. in considering user intention (contrast with register)?
