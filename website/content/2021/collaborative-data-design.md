@@ -45,8 +45,6 @@ TODO: examples of offline work failure: existing apps don't work offline, e.g., 
 
 I'm particularly excited by the potential for **open-source collaborative apps** that anyone can modify and redistribute, and that run on a user-specified network, instead of requiring separate hosting and logins (hence dev money and user trust) for each app.
 
-> I gave a demo of what open-source collaborative apps might look like in [this Strange Loop talk](https://www.youtube.com/watch?v=Exr0iY_D-vw).
-
 ## The Challenge: Designing CRDTs
 
 Having read all that, let's say you choose to use a CRDT for your collaborative app. All you need is a CRDT representing your app's state, a frontend UI, and a network of your choice (or a way for users to pick the network themselves). But where do you get a CRDT for your specific app?
@@ -82,7 +80,7 @@ TODO: figure showing DAG of spreadsheet ops. Caption: Given this history of spre
 
 # CRDT Model
 
-I'll describe basic CRDTs using the following model. For each user-facing operation, the CRDT has two functions:
+I'll describe basic CRDTs using the following model---that of **operation-based CRDTs**. For each user-facing operation, the CRDT has two functions:
 1. A function called by the operating user, which outputs a message but does not modify the CRDT's state. The message is then broadcast to all users.
 2. A function called by each user (including the operator) when they receive the message, which inputs the message and modifies that user's state accordingly.
 
@@ -114,7 +112,7 @@ My advice for designing optimized CRDTs is:
 - First, design a simple, unoptimized CRDT that has the best possible semantics, using the techniques in this blog post.
 - Then, if needed, make an optimized implementation and prove (or verify through testing) that it is equivalent to the unoptimized CRDT.
 
-If you try to make an optimized implementation from scratch, you risk running into [Other Approach 1](#other-approach-1)'s pitfalls, or making a CRDT with confusing behavior.  (TODO: ref JSON todo-list figure, Riak observed-resets, semidirect---I'm guilty of this too?).
+If you try to make an optimized implementation from scratch, you risk running into [Other Approach 1](#other-approach-1)'s pitfalls, or making a CRDT with confusing behavior.  (TODO: ref JSON todo-list figure, Riak observed-resets, semidirect---I'm guilty of this too).
 
 # Basic Designs
 
@@ -136,7 +134,7 @@ It is obvious that the state of the set, as seen by a specific user, is always t
 
 We now have our first principle of CRDT design:
 
-**Principle 1.** Use the unique set CRDT for operations that "add" or "create" a unique new thing.
+<a name="principle-1"></a>**Principle 1.** Use the unique set CRDT for operations that "add" or "create" a unique new thing.
 
 Although it is simple, the unique set forms the basis for the rest of our CRDT designs.
 
@@ -170,17 +168,17 @@ List CRDTs use a different perspective.  When you type a character in a text doc
 
 TODO: figure illustrating position intuition (insert between two words).
 
-"A certain place within the existing text" is vague, but at a minimum, it should be between the characters left and right of your insertion point (here TODO and TODO).  Also, unlike an index, this intuitive position doesn't change if other users concurrently type earlier in the document; your cursor is still between the same words as before. In other words, it is *immutable*.
+"A certain place within the existing text" is vague, but at a minimum, it should be between the characters left and right of your insertion point (here TODO and TODO (ref figure)).  Also, unlike an index, this intuitive position doesn't change if other users concurrently type earlier in the document; your cursor is still between the same words as before. In other words, it is *immutable*.
 
 This leads to the following implementation. The list's state is a unique set whose values are pairs $(x, p)$, where $x$ is the actual value (e.g., a character), and $p$ is a *unique immutable position* drawn from some totally ordered set. The user-visible state of the list is the list of values $x$ ordered by their positions $p$. Operations are implemented as:
 - $insert(x, i)$: The inserting user looks up the positions $p_L, p_R$ of the values to the left and right (indices $i$ and $i+1$), generates a unique new position $p$ such that $p_L < p < p_R$, and calls $add((x, p))$ on the unique set. 
 - $delete(i)$: The deleting user finds the element $e$ of the unique set at index $i$, then calls $delete(e)$ on the unique set.
 
-Of course, to complete the implementation, we need a totally ordered set with the ability to create a unique new position in between any two existing positions. This is the hard part---in fact, the hardest part of any CRDT---and we don't have space to go into it here; you should use a library for it (TODO: link?).  Generally, solutions involve a tree, sorted by the tree walk on nodes; you create a unique new position in between $p_L$ and $p_R$ by adding a new leaf somewhere between $p_L$ and $p_R$, e.g., as a right child of $p_L$.
+Of course, to complete the implementation, we need a totally ordered set with the ability to create a unique new position in between any two existing positions. This is the hard part---in fact, the hardest part of any CRDT---and we don't have space to go into it here; you should probably use a library.  Generally, solutions involve a tree, sorted by the tree walk on nodes; you create a unique new position in between $p_L$ and $p_R$ by adding a new leaf somewhere between $p_L$ and $p_R$, e.g., as a right child of $p_L$.
 
 The important lesson here is that we had to translate indices (the language of normal, non-CRDT lists) into immutable positions (what the user actually means when they say "insert here").  This leads to our second principle of CRDT design:
 
-**Principle 2.** Express operations in terms of user intention---what the operation means to the user, intuitively. This might differ from the closest ordinary data type operation.
+<a name="principle-2"></a>**Principle 2.** Express operations in terms of user intention---what the operation means to the user, intuitively. This might differ from the closest ordinary data type operation.
 
 The principle works because users often have some idea what one operation should do in the face of concurrent operations. E.g., typing after a word should insert the new characters at that word, independently of other users' typing at the beginning of the document. If you can capture that intuition, the resulting operations won't conflict.
 
@@ -201,15 +199,15 @@ As you can see, registers are very useful and suffice for many tasks (e.g., [Fig
 
 The only operation on a register is $set(x)$, which sets the value to $x$ (in the absence of concurrent operations). We can't perform these operations literally, since if two users receive concurrent $set$ operations in different orders, they'll end up with different values.
 
-However, we notice that $set(x)$ is doing something "new"---setting a new value $x$.  So following Principle 1, we should use a unique set CRDT. I.e., the state of our register is a unique set, and when a user calls $set(x)$, we call $add(x)$ on the unique set. The state is now a set of values instead of a single value, but we'll just have to live with this (see below).
+However, we notice that $set(x)$ is doing something "new"---setting a new value $x$.  So following [Principle 1](#principle-1), we should use a unique set CRDT. I.e., the state of our register is a unique set, and when a user calls $set(x)$, we call $add(x)$ on the unique set. The state is now a set of values instead of a single value, but we'll just have to live with this (see below).
 
 Of course, we don't have to keep around a set of all values that have ever been set; we can delete the old ones each time $set(x)$ is called. Indeed, for an ordinary (non-CRDT) register, we can think of $set(x)$ as having two steps: first, delete the old value; then set the new value $x$. In CRDT-land, using a unique set, this becomes: first, for each old value, delete it; then add the new value $x$.
 
 In summary, the implementation of $set(x)$ is: for each element $e$ in the unique set, call $delete(e)$ on the unique set; then call $add(x)$. The result is that at any time, the register's state is the set of all the most recent concurrently-set values, i.e., the maximal values with respect to the causal order.
 
-Loops of the form "for each element of a collection, do something" are common in programming. We just saw a way to extend them to CRDTs: "for each element of a unique set, do some CRDT operation". We call this a **causal for-each** because it affects elements that were added to the unique set causally prior to the for-each operation. It's useful enough that we make it our next principle of CRDT design:
+Loops of the form "for each element of a collection, do something" are common in programming. We just saw a way to extend them to CRDTs: "for each element of a unique set, do some CRDT operation" (either a unique set operation or an operation on the element's value, if it's a CRDT itself). We call this a **causal for-each** because it affects elements that were added to the unique set causally prior to the for-each operation. It's useful enough that we make it our next principle of CRDT design:
 
-**Principle 3a.** For operations that do something "for each" element of a collection, one option is to use a *causal for-each operation* on a unique set (or list CRDT).
+<a name="principle-3a"></a>**Principle 3a.** For operations that do something "for each" element of a collection, one option is to use a *causal for-each operation* on a unique set (or list CRDT).
 
 ### Getting the Value
 
@@ -222,7 +220,10 @@ Another option is to pick a value arbitrarily but deterministically.  E.g., the 
 TODO: figure: Pixelpusher LWW + MVR.
 
 In general, you can define the getter using an arbitrary deterministic function of the set of values. Examples:
-- If the values are colors, you can average their RGB coordinates. That seems like fine behavior for pixels in a collaborative whiteboard. TODO: illustration
+- If the values are colors, you can average their RGB coordinates. That seems like fine behavior for pixels in a collaborative whiteboard.
+
+TODO: figure: illustration
+
 - The **Enable-Wins Flag** CRDT is a boolean-valued register where the external value is $true$ if the state contains at least one $true$. This means that we give a preference to $set(true)$ over concurrent $set(false)$ operations ("true-wins semantics"). The **Disable-Wins Flag** is the opposite.
 
 ## Composing CRDTs: Objects, Maps, and Collections of CRDTs
@@ -271,12 +272,12 @@ A good starting point is to design an ordinary (non-CRDT) data model, using obje
 
 To accommodate as many operations as possible while preserving user intention, we recommend:
 
-**Principle 4.** Independent operations (in the user's mind) should act on independent state.
+<a name="principle-4"></a>**Principle 4.** Independent operations (in the user's mind) should act on independent state.
 
 Examples:
 - <a name="list-with-move"></a>In a collaborative slide editor, you might initially model the slide list as a list of slide CRDTs. However, this provides no way for users to move slides around in the list, e.g., swap the order of two slides. You could implement a move operation using cut-and-paste, but then slide edits concurrent to a move will be lost, even though these are intuitively independent operations.
 Following Principle 4, you should instead implement move operations by modifying some state independent of the slide itself. You can do this by replacing the *list* of slides with a *set of pairs (slide, `positionReg`)*, where `positionReg` is an LWW register whose value is a position in a separate list CRDT. To move a slide, you insert a new element into the separate list CRDT, then set the value `positionReg` equal to the new element's position. This construction gives the **list-with-move** CRDT (TODO: cite).
-- As mentioned earlier, you can represent the position and size of an image in a collaborative slide editor by using separate registers for the left, top, width, and height. In principle, you could instead use a single register whose value is a tuple (left, top, width, height), but this would violate Principle 4. Indeed, then if one user moved the image while another resized it, one of their changed would overwrite the other, instead of merging them. Likewise, it would be a mistake to replace (left, top, width, height) with (left, top, right, bottom) (this also violates Principle 2).
+- As mentioned earlier, you can represent the position and size of an image in a collaborative slide editor by using separate registers for the left, top, width, and height. In principle, you could instead use a single register whose value is a tuple (left, top, width, height), but this would violate Principle 4. Indeed, then if one user moved the image while another resized it, one of their changed would overwrite the other, instead of merging them. Likewise, it would be a mistake to replace (left, top, width, height) with (left, top, right, bottom) (this also violates [Principle 2](#principle-2)).
 
 ## New: Concurrent+Causal For-Each Operations
 
@@ -290,31 +291,31 @@ TODO: figure illustrating
 In other words, the first user's intended operation is "for each character in the range *including ones inserted concurrently*, bold it".
 - In a collaborative recipe editor, if one user clicks a "double the recipe" button, while concurrently, another user edits an amount, then their edit should also be doubled. Otherwise, the recipe will be out of proportion, and the meal will be ruined!
 
-I call such an operation a **concurrent+causal for-each operation**. Formally, TODO (sending op, recipients act on concurrently added ops received both before and after).
+I call such an operation a **concurrent+causal for-each operation**. To accomodate the above examples, I propose:
 
-To accomodate the above examples, I propose:
+<a name="principle-3b"></a>**Principle 3b.** For operations that do something "for each" element of a collection, another option is to use a *concurrent+causal for-each operation* on a unique set (or list CRDT).
 
-**Principle 3b.** For operations that do something "for each" element of a collection, another option is to use a *concurrent+causal for-each operation* on a unique set (or list CRDT).
+To implement this, the initiating user first does a causal for-each operation. They then send a message describing how to perform the operation on concurrently added elements. The receivers apply the operation to any concurrently added elements they've received already (and haven't yet deleted), then store the message in a log. Later, each time they receive a new element, they check if it's concurrent to the stored message; if so, they apply the operation.
+
+> **Remark.** It would be more general to split Principle 3 into "causal for-each" and "concurrent for-each" operations, like in the implementation. However, I haven't yet found a good use-case for a concurrent for-each operation that isn't part of a concurrent+causal for-each.
 
 Concurrent+causal for-each operations are novel as far as I'm aware. They are based on a paper I, Heather Miller, and Christopher Meiklejohn wrote last year, on a composition technique we call the *semidirect product*. Unfortunately, the paper is rather obtuse, and it doesn't make clear what the semidirect product is doing intuitively (since we didn't understand this ourselves!). My current opinion is that concurrent+causal for-each operations are what it's really trying to do; the semidirect product is a special case of an optimized implementation, written in the [Other Approach 1](#other-approach-1) style.
 
 > If you do want to use the semidirect product as an optimized implementation, be aware that it is not as general as it could be. E.g., the recipe example can be optimized, but not using the semidirect product. I'll write up a tech report about a more general approach at some point.
 
-> **Remark.** It would be more general to split Principle 3 into "causal for-each" and "concurrent for-each" operations. I won't rephrase things this way unless I find a good use-case for a concurrent for-each operation that is not part of a concurrent+causal for-each.
-
-<!-- TODO: Remark: dual view: controller for the for-each part plus oppositely-adjusted state. E.g. for scaling, or reversible list? Perhaps contrast with that approach---ours should be easier, in comparison to e.g. rich-text CRDT using invisible formatting characters (direct construction approach). -->
+<!-- Remark: dual view: controller for the for-each part plus oppositely-adjusted state. E.g. for scaling, or reversible list? Perhaps contrast with that approach---ours should be easier, in comparison to e.g. rich-text CRDT using invisible formatting characters (direct construction approach). -->
 
 ## Summary: Principles of CRDT Design
 
 For easy reference, here are our principles of CRDT design.
 
-**Principle 1.** Use the unique set CRDT for operations that "add" or "create" a unique new thing.
+[**Principle 1.**](#principle-1) Use the unique set CRDT for operations that "add" or "create" a unique new thing.
 
-**Principle 2.** Express operations in terms of user intention---what the operation means to the user, intuitively. This might differ from the closest ordinary data type operation.
+[**Principle 2.**](#principle-2) Express operations in terms of user intention---what the operation means to the user, intuitively. This might differ from the closest ordinary data type operation.
 
-**Principle 3a.** For operations that do something "for each" element of a collection, use a *causal for-each operation* or a *concurrent+causal for-each operation* on a unique set (or list CRDT).
+**Principle 3([a](#principle-3a), [b](#principle-3b)).** For operations that do something "for each" element of a collection, use a *causal for-each operation* or a *concurrent+causal for-each operation* on a unique set (or list CRDT).
 
-**Principle 4.** Independent operations (in the user's mind) should act on independent state.
+[**Principle 4.**](#principle-4) Independent operations (in the user's mind) should act on independent state.
 
 # Case Study: A Collaborative Spreadsheet
 
@@ -328,7 +329,7 @@ As practice, you can try sketching a design yourself before reading any further;
 
 To start off, consider an individual cell. Fundamentally, it consists of a text string. We could make this a text (list) CRDT, but usually, you don't edit individual cells collaboratively; instead, you type the new value of the cell, hit enter, and then its value shows up for everyone else. This suggests instead using a register, e.g., an LWW register.
 
-Besides the text content, a cell can have properties like its font size, whether word wrap is enabled, etc. Since changing these properties are all independent operations, following Principle 4, they should have independent state. This suggests using a CRDT object to represent the cell, with a different CRDT instance field for each property. In pseudocode:
+Besides the text content, a cell can have properties like its font size, whether word wrap is enabled, etc. Since changing these properties are all independent operations, following [Principle 4](#principle-4), they should have independent state. This suggests using a CRDT object to represent the cell, with a different CRDT instance field for each property. In pseudocode:
 ```ts
 class Cell {
   content: LwwRegister<string>;
@@ -340,11 +341,11 @@ class Cell {
 
 The spreadsheet itself is a grid of cells. Each cell is indexed by its location (row, column), suggesting a map from locations to cells. (A 2D list could work too, but then we'd have to put rows and columns on an unequal footing, which might cause trouble later.) Thus let's use a `Cell`-CRDT-valued lazy map.
 
-What about the map keys? It's tempting to use conventional row-column indicators like "A1", "B3", etc. However, then we can't easily insert or delete rows/columns, since doing so renames other cells' indicators. (We could try making a "rename" operation, but that violates Principle 2, since it does not match the user's original intention: inserting/deleting a different row/column.)
+What about the map keys? It's tempting to use conventional row-column indicators like "A1", "B3", etc. However, then we can't easily insert or delete rows/columns, since doing so renames other cells' indicators. (We could try making a "rename" operation, but that violates [Principle 2](#principle-2), since it does not match the user's original intention: inserting/deleting a different row/column.)
 
 Instead, let's identify cell locations using pairs (row, column), where the "row" means "the line of cells horizontally adjacent to this cell", independent of that row's literal location (1, 2, etc.), and likewise for "column". That is, we create an opaque `Row` object to represent each row, and likewise for columns, then use pairs (`Row` object, `Column` object) for our map keys.
 
-The word "create" suggests using unique sets (Principle 1), although since the rows and columns are ordered, we actually want CRDTs. Hence our app state looks like:
+The word "create" suggests using unique sets ([Principle 1](#principle-1)), although since the rows and columns are ordered, we actually want CRDTs. Hence our app state looks like:
 ```ts
 rows: ListCrdt<Row>;
 columns: ListCrdt<Column>;
@@ -352,7 +353,7 @@ cells: LazyCrdtValueMap<[row: Row, column: Column], Cell>;
 ```
 Now you can insert or delete rows and columns by calling the appropriate operations on `columns` and `rows`, without affecting the `cells` map at all. (Due to the lazy nature of the map, we don't have to explicitly create cells to fill a new row or column; they implicitly already exist.)
 
-Speaking of rows and columns, there's more we can do here. For example, rows have editable properties like their height, whether they are hidden, etc. These properties are independent, so they should have independent states (Principle 4). This suggests making `Row` into a CRDT object class:
+Speaking of rows and columns, there's more we can do here. For example, rows have editable properties like their height, whether they are hidden, etc. These properties are independent, so they should have independent states ([Principle 4](#principle-4)). This suggests making `Row` into a CRDT object class:
 ```ts
 class Row {
   height: LwwRegister<number>;
@@ -372,9 +373,9 @@ columns: MovableList<Column>;
 ```
 
 We can also perform operations on every cell in a row, like changing the font size of every cell. For each such operation, we have three options:
-1. Use a causal for-each operation (Principle 3a). This will affect all current cells in the row, but not any cells that are created concurrently (because a new column is inserted). E.g., causal for-each is the safe choice for a "clear" operation that sets every cell's content to "", since that way, you don't lose data entered into a concurrently-created cell.
-2. Use a concurrent+causal for-each operation (Principle 3b). This will affect all current cells in the row *and* any those created concurrently. E.g., I'd recommend this for changing the font size or other formatting properties of a whole row, so that concurrently-created cells don't become mismatched.
-3. Use an independent state that affects the row itself, not the cells (Principle 4). E.g., we're already using `Row.height` for the height of a row, instead of using a separate height CRDT for each cell.
+1. Use a causal for-each operation ([Principle 3a](#principle-3a)). This will affect all current cells in the row, but not any cells that are created concurrently (because a new column is inserted). E.g., causal for-each is the safe choice for a "clear" operation that sets every cell's content to "", since that way, you don't lose data entered into a concurrently-created cell.
+2. Use a concurrent+causal for-each operation ([Principle 3b](#principle-3b)). This will affect all current cells in the row *and* any those created concurrently. E.g., I'd recommend this for changing the font size or other formatting properties of a whole row, so that concurrently-created cells don't become mismatched.
+3. Use an independent state that affects the row itself, not the cells ([Principle 4](#principle-4)). E.g., we're already using `Row.height` for the height of a row, instead of using a separate height CRDT for each cell.
 
 > **Remark.** Note that the for-each loops loop over every cell in the row, even blank cells that have never been used. This has the downside of making all those cells explicitly exist in the lazy map, increasing memory usage. We tolerate this since our focus is to pin down the semantics, not give an efficient implementation. Once the semantics are pinned down, though, you are free to optimize the implementation.  So long as you can prove that the app's behavior is unchanged, it's still a CRDT with your desired semantics.  This approach is probably easier and more user-friendly than trying to construct an efficient CRDT from scratch and prove commutativity directly, without a solid semantics to guide you.
 
@@ -430,24 +431,18 @@ As exercises, here are some further tweaks you can make to this design, phrased 
 
 # Conclusion
 
-In this blog post, TODO
+In this blog post, I described how to design CRDTs from the ground up. We covered some basic CRDTs, composition techniques, and some guiding principles. Using these, we made:
 
-Summarize traditional + novel CRDTs covered.
+- **Traditional CRDTs:** Unique Set, List/Text, LWW Register, Enable-Wins Flag, Add-Wins Set, Lazy Map, and List-with-Move.
+- **Novel Operations**: Concurrent+causal for-each operations on a unique set or list.
+- **Whole Apps**: Spreadsheet, rich text, and pieces of various other apps.
 
-Future extension: list every CRDT I know of and describe it in this model (including weird ones like Riak Map - explain as memory/GC optimization).
+I hope you've gained an understanding of how these work, plus perhaps a desire to start designing CRDTs for your own app ideas.
 
-TODO: more info: crdts.tech, references,  Link to local-first blog post, Collabs, Collabs demos, Strange Loop talk. Link to Collabs/Quill rich text in one of its examples?
+For more info, [crdt.tech](https://crdt.tech/) collects most CRDT resources in one place. I've also started putting these ideas into practice into a library, [Collabs](https://www.npmjs.com/package/@collabs/collabs). You can learn more about Collabs, and see how open-source collaborative apps might work in practice, in [my Strange Loop talk](https://www.youtube.com/watch?v=Exr0iY_D-vw) (demos included!).
 
-TODO: CRDTs covered, not covered (e.g. optimizations, including weird semantics that arise from optimizations only (picture from Automerge paper), or tree (tricky, haven't decided what this is about myself yet)).
+<!-- Future extension: list every CRDT I know of and describe it in this model (including weird ones like Riak Map - explain as memory/GC optimization). Also mention shortcomings like tree. -->
 
-TODO (put somewhere):
-
-- Clarify existing CRDTs vs novel ones (spreadsheet, concurrent for-each).
-- links for principles
-- Counter somewhere? E.g. in considering user intention (contrast with register)?
+TODO (check while editing):
 - we -> I
-- more figures
-- Principle 2 for states as well?  (What does a value mean to the user. E.g. A2 in a spreadsheet means the cell, even if it moves around.)
-- Op-based model (not state-based or delta-based).
-- Only part you really need a library for is the text alg, plus getting started (framework, hierarchy, unique ste). Can we make such a library?
-- unique set -> Unique Set CRDT.
+- unique set -> Unique Set CRDT? Likewise for other names?
