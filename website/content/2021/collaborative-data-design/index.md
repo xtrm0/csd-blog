@@ -71,11 +71,11 @@ The approach in this blog post is my own way of thinking about CRDT design. It's
 
 I'll describe basic CRDTs using the following model, that of **operation-based CRDTs**. For each user-facing operation, the CRDT has two functions:
 1. A function called by the operating user, which outputs a message but does not modify the CRDT's state. The message is then broadcast to all users.
-2. A function called by each user (including the operator) when they receive the message, which inputs the message and modifies that user's state accordingly.
+2. A function called by each user (including the operator) when they receive the message, which inputs the message and modifies that user's state &amp; display accordingly.
+
+![In response to user input, the operator calls "Output message". The message is then delivered to every user's "Receive &amp; Update display" function.](message_flow.png)
 
 The end result is that each user's state reflects the operation.
-
-TODO: figure: lifetime of an operation.
 
 The network requirement for message delivery is **reliable causal broadcast**. This means:
 - Every message sent by one user is eventually delivered to every other user, possibly after an unbounded delay (**reliable broadcast**).
@@ -95,7 +95,9 @@ Normally, CRDT correctness requires a mathematical proof---either that concurren
 
 ## Semantics vs Implementation
 
-I'll describe most CRDTs in terms of an implementation, because I find implementations easier to explain. However, my real goal is to describe their *semantics*: what users see after they perform various operations, possibly concurrently. If you can find alternate implementations that have the same behavior as the ones I describe but are more efficient, then by all means, use those instead. But I recommend starting with an unoptimized implementation like I describe here, so that you know what your CRDT is doing. <!--But my advice for designing these optimized CRDTs is:
+I'll describe most CRDTs in terms of an implementation, because I find implementations easier to explain. However, my real goal is to describe their *semantics*: what users see after they perform various operations, possibly concurrently. If you can find alternate implementations that have the same behavior as the ones I describe but are more efficient, then by all means, use those instead. But I recommend starting with an unoptimized implementation like I describe here, so that you know what your CRDT is doing.
+
+<!-- But my advice for designing these optimized CRDTs is:
 - First, design a simple, unoptimized CRDT that has the best possible semantics.
 - Then, if needed, make an optimized implementation and prove (or verify through testing) that it is equivalent to the unoptimized version.
 
@@ -149,17 +151,16 @@ We now need to decide on the semantics, i.e., what is the result of various inse
 
 One approach would use indices directly: when a user calls \\(insert(x, i)\\), they send \\(x\\) and \\(i\\) to the other users, who use \\(i\\) to insert \\(x\\) at the appropriate location. The challenge is that your intended insertion index might move around as a result of users inserting/deleting in front of \\(i\\).
 
-TODO: figure: indices getting moved around
+![The *gray* cat jumped on **the** table.](ot.png)
+<p align="center"><i>Alice typed " the" at index 17, but concurrently, Bob typed "gray" in front of her. From Bob's perspective, Alice's insert should happen at index 22.</i></p>
 
 Its possible to work around this by "transforming" \\(i\\) to account for concurrent edits. This idea loads to [**Operational Transformation (OT)**](https://en.wikipedia.org/wiki/Operational_transformation), the earliest-invented approach to collaborative text editing, and the one used in Google Docs and most existing apps. Unfortunately, OT algorithms get quite complicated, especially when you don't have a central server to help you.
 
 <!--Several incorrect attempts at server-free OT were published before the [first correct one](https://core.ac.uk/download/pdf/54049928.pdf) in 2005 (cite, check correctness via citations)---the same year the [first CRDT paper](https://hal.inria.fr/inria-00071240/document) was published. -->
 
-List CRDTs use a different perspective.  When you type a character in a text document, you probably don't think of its position as "index 723" or whatever; instead, its position is at a certain place within the existing text.
+List CRDTs use a different perspective.  When you type a character in a text document, you probably don't think of its position as "index 17" or whatever; instead, its position is at a certain place within the existing text.
 
-TODO: figure illustrating position intuition (insert between two words).
-
-"A certain place within the existing text" is vague, but at a minimum, it should be between the characters left and right of your insertion point (here TODO and TODO (ref figure)).  Also, unlike an index, this intuitive position doesn't change if other users concurrently type earlier in the document; your cursor is still between the same words as before. That is, it is *immutable*.
+"A certain place within the existing text" is vague, but at a minimum, it should be between the characters left and right of your insertion point ("on" and " table" in the example above)  Also, unlike an index, this intuitive position doesn't change if other users concurrently type earlier in the document; your new text should go between the same characters as before. That is, the position is *immutable*.
 
 This leads to the following implementation. The list's state is a unique set whose values are pairs \\((x, p)\\), where \\(x\\) is the actual value (e.g., a character), and \\(p\\) is a **unique immutable position** drawn from some totally ordered set. The user-visible state of the list is the list of values \\(x\\) ordered by their positions \\(p\\). Operations are implemented as:
 - \\(insert(x, i)\\): The inserting user looks up the positions \\(p_L, p_R\\) of the values to the left and right (indices \\(i\\) and \\(i+1\\)), generates a unique new position \\(p\\) such that \\(p_L < p < p_R\\), and calls \\(add((x, p))\\) on the unique set. 
@@ -277,7 +278,7 @@ There's one more trick I want to show you. Sometimes, when performing a for-each
 For example:
 - In a rich text editor, if one user bolds a range of text, while concurrently, another user types in the middle of the range, the latter text should also be bolded.
 <br />
-TODO: figure illustrating
+![One user bolds a range of text, while concurrently, another user types " the" in the middle. In the final result, " the" is also bolded.](weird_bolding.png)
 <br />
 In other words, the first user's intended operation is "for each character in the range *including ones inserted concurrently*, bold it".
 - In a collaborative recipe editor, if one user clicks a "double the recipe" button, while concurrently, another user edits an amount, then their edit should also be doubled. Otherwise, the recipe will be out of proportion, and the meal will be ruined!
@@ -441,8 +442,8 @@ For more info, [crdt.tech](https://crdt.tech/) collects most CRDT resources in o
 
 <!-- Future extension: list every CRDT I know of and describe it in this model (including weird ones like Riak Map - explain as memory/GC optimization). Also mention shortcomings like tree. -->
 
-TODO (check while editing):
+<!--TODO (check while editing):
 - unique set -> Unique Set CRDT? Likewise for other names?
 - look through related work notion for other things to include
 - backticks instead of latex
-- inline references
+- inline references-->
