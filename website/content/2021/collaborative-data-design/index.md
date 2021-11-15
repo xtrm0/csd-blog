@@ -79,11 +79,11 @@ The end result is that each user's state reflects the operation.
 
 The network requirement for message delivery is **reliable causal broadcast**. This means:
 - Every message sent by one user is eventually delivered to every other user, possibly after an unbounded delay (**reliable broadcast**).
-- Users receive messages **in causal order**. This means that if a user sends a message \\(m\\) after receiving or sending a message \\(m'\\), then all users delay receiving \\(m\\) until after receiving \\(m'\\).
+- Users receive messages **in causal order**. This means that if a user sends a message \\(m\\) after receiving or sending a message \\(m^\prime\\), then all users delay receiving \\(m\\) until after receiving \\(m^\prime\\).
 
 Receiving messages in causal order helps prevent confusing situations, like a user receiving a comment on a post before receiving the post itself, which would otherwise make CRDT design more difficult. It is the strongest order that can be enforced without a central server and without extra round-trips between users, e.g., by using [vector clocks](https://en.wikipedia.org/wiki/Vector_clock).
 
-<a name="causal-order"></a>We can likewise talk about the **causal order** on operations. This is a partial order \\(<\\) defined by: if a user performs an operation \\(o\\) after receiving or sending the message for an operation \\(o'\\), then \\(o' < o\\). If two operations are incomparable under the causal order (neither \\(o' < o\\) nor \\(o < o'\\)), then they are **concurrent**. From the CRDT's perspective, concurrent operations happen simultaneously, and different users might receive them in different orders.
+<a name="causal-order"></a>We can likewise talk about the **causal order** on operations. This is a partial order \\(<\\) defined by: if a user performs an operation \\(o\\) after receiving or sending the message for an operation \\(o^\prime\\), then \\(o^\prime < o\\). If two operations are incomparable under the causal order (neither \\(o^\prime < o\\) nor \\(o < o^\prime\\)), then they are **concurrent**. From the CRDT's perspective, concurrent operations happen simultaneously, and different users might receive them in different orders.
 
 <!-- > Many authors define the causal order as the transitive closure of \\(<\\) as we have defined it. Since we assume messages are delivered in causal order, the two definitions are equivalent.
 
@@ -117,16 +117,16 @@ Now that our CRDT model is established, let's go over some basic CRDT designs.
 Our foundational CRDT is the **Unique Set**.  It is a set in which each added element is considered unique.
 
 Formally, the operations on the set, and their collaborative implementations, are as follows:
-- \\(add(x)\\): Adds an element \\(e = (x, t)\\) to the set, where \\(t\\) is a *unique new tag*, used to ensure that \\((x, t)\\) is unique. To implement this, the adding user generates \\(t\\), e.g., as a pair (device id, device-specific counter), then serializes \\((x, t)\\) and broadcasts it to the other users.  The receivers deserialize \\((x, t)\\) and add it to their local copy of the set.
-- \\(delete(e)\\): Deletes the element \\(e = (x, t)\\) from the set.  To implement this, the deleting user serializes \\(t\\) and broadcasts it to the other users.  The receivers deserialize \\(t\\) and remove the element with tag \\(t\\) from their local copy, if it has not been deleted already.
+- `add(x)`: Adds an element `e = (x, t)` to the set, where `t` is a *unique new tag*, used to ensure that `(x, t)` is unique. To implement this, the adding user generates `t`, e.g., as a pair (device id, device-specific counter), then serializes `(x, t)` and broadcasts it to the other users.  The receivers deserialize `(x, t)` and add it to their local copy of the set.
+- `delete(e)`: Deletes the element `e = (x, t)` from the set.  To implement this, the deleting user serializes `t` and broadcasts it to the other users.  The receivers deserialize `t` and remove the element with tag `t` from their local copy, if it has not been deleted already.
 
-When displaying the set to the user, you ignore the tags and just list out the data values \\(x\\), keeping in mind that (1) they are not ordered (at least not consistently across different users), and (2) there may be duplicates.
+When displaying the set to the user, you ignore the tags and just list out the data values `x`, keeping in mind that (1) they are not ordered (at least not consistently across different users), and (2) there may be duplicates.
 
-**Example:** In a flash card app, you could represent the deck of cards using a unique set, using \\(x\\) to hold the flash card's value (e.g., its front and back strings). Users can edit the deck by adding a new card or deleting an existing one, and duplicate cards are allowed. <!--Note that the collaborative state is just the *set* of cards; there is no ordering info. You could perhaps sort them alphabetically in editing mode (to make them consistent), and randomly in practice mode (deliberately inconsistent).-->
+**Example:** In a flash card app, you could represent the deck of cards using a unique set, using `x` to hold the flash card's value (e.g., its front and back strings). Users can edit the deck by adding a new card or deleting an existing one, and duplicate cards are allowed. <!--Note that the collaborative state is just the *set* of cards; there is no ordering info. You could perhaps sort them alphabetically in editing mode (to make them consistent), and randomly in practice mode (deliberately inconsistent).-->
 
-It is obvious that the state of the set, as seen by a specific user, is always the set of elements for which they have received an \\(add\\) message but no \\(delete\\) messages. This holds regardless of the order in which they receive concurrent messages. Thus the unique set is a CRDT.
+It is obvious that the state of the set, as seen by a specific user, is always the set of elements for which they have received an `add` message but no `delete` messages. This holds regardless of the order in which they receive concurrent messages. Thus the unique set is a CRDT.
 
-> Note that delivery in causal order is important---a \\(delete\\) operation only works if it is received after its corresponding \\(add\\) operation.
+> Note that delivery in causal order is important---a `delete` operation only works if it is received after its corresponding `add` operation.
 
 <p></p><br />
 
@@ -142,20 +142,20 @@ Although it is simple, the unique set forms the basis for the rest of our CRDT d
 
 ## Lists
 
-Our next CRDT is a **list CRDT**. It represents a list of elements, with \\(insert\\) and \\(delete\\) operations. For example, you can use a list CRDT of characters to store the text in a collaborative text editor, using \\(insert\\) to type a new character and \\(delete\\) for backspace.
+Our next CRDT is a **list CRDT**. It represents a list of elements, with `insert` and `delete` operations. For example, you can use a list CRDT of characters to store the text in a collaborative text editor, using `insert` to type a new character and `delete` for backspace.
 
 Formally, the operations on a list CRDT are:
-- \\(insert(x, i)\\): Inserts a new element with value \\(x\\) at index \\(i\\), between the existing elements at indices \\(i\\) and \\(i+1\\). All later elements (index \\(\ge i+1\\)) are shifted one to the right.
-- \\(delete(i)\\): Deletes the element at index \\(i\\). All later elements (index \\(\ge i+1\\)) are shifted one the left.
+- `insert(x, i)`: Inserts a new element with value `x` at index `i`, between the existing elements at indices `i` and `i+1`. All later elements (index `>= i+1`) are shifted one to the right.
+- `delete(i)`: Deletes the element at index `i`. All later elements (index `>= i+1`) are shifted one the left.
 
 We now need to decide on the semantics, i.e., what is the result of various insert and delete operations, possibly concurrent. The fact that insertions are unique suggests using a unique set. However, we also have to account for indices and the list order.
 
-One approach would use indices directly: when a user calls \\(insert(x, i)\\), they send \\(x\\) and \\(i\\) to the other users, who use \\(i\\) to insert \\(x\\) at the appropriate location. The challenge is that your intended insertion index might move around as a result of users inserting/deleting in front of \\(i\\).
+One approach would use indices directly: when a user calls `insert(x, i)`, they send `x` and `i` to the other users, who use `i` to insert `x` at the appropriate location. The challenge is that your intended insertion index might move around as a result of users inserting/deleting in front of `i`.
 
 ![The *gray* cat jumped on **the** table.](ot.png)
 <p align="center"><i>Alice typed " the" at index 17, but concurrently, Bob typed "gray" in front of her. From Bob's perspective, Alice's insert should happen at index 22.</i></p>
 
-Its possible to work around this by "transforming" \\(i\\) to account for concurrent edits. This idea loads to [**Operational Transformation (OT)**](https://en.wikipedia.org/wiki/Operational_transformation), the earliest-invented approach to collaborative text editing, and the one used in Google Docs and most existing apps. Unfortunately, OT algorithms get quite complicated, especially when you don't have a central server to help you.
+Its possible to work around this by "transforming" `i` to account for concurrent edits. This idea loads to [**Operational Transformation (OT)**](https://en.wikipedia.org/wiki/Operational_transformation), the earliest-invented approach to collaborative text editing, and the one used in Google Docs and most existing apps. Unfortunately, OT algorithms get quite complicated, especially when you don't have a central server to help you.
 
 <!--Several incorrect attempts at server-free OT were published before the [first correct one](https://core.ac.uk/download/pdf/54049928.pdf) in 2005 (cite, check correctness via citations)---the same year the [first CRDT paper](https://hal.inria.fr/inria-00071240/document) was published. -->
 
@@ -163,11 +163,11 @@ List CRDTs use a different perspective.  When you type a character in a text doc
 
 "A certain place within the existing text" is vague, but at a minimum, it should be between the characters left and right of your insertion point ("on" and " table" in the example above)  Also, unlike an index, this intuitive position doesn't change if other users concurrently type earlier in the document; your new text should go between the same characters as before. That is, the position is *immutable*.
 
-This leads to the following implementation. The list's state is a unique set whose values are pairs \\((x, p)\\), where \\(x\\) is the actual value (e.g., a character), and \\(p\\) is a **unique immutable position** drawn from some (non-CRDT) totally ordered set. The user-visible state of the list is the list of values \\(x\\) ordered by their positions \\(p\\). Operations are implemented as:
-- \\(insert(x, i)\\): The inserting user looks up the positions \\(p_L, p_R\\) of the values to the left and right (indices \\(i\\) and \\(i+1\\)), generates a unique new position \\(p\\) such that \\(p_L < p < p_R\\), and calls \\(add((x, p))\\) on the unique set. 
-- \\(delete(i)\\): The deleting user finds the element \\(e\\) of the unique set at index \\(i\\), then calls \\(delete(e)\\) on the unique set.
+This leads to the following implementation. The list's state is a unique set whose values are pairs `(x, p)`, where `x` is the actual value (e.g., a character), and `p` is a **unique immutable position** drawn from some (non-CRDT) totally ordered set. The user-visible state of the list is the list of values `x` ordered by their positions `p`. Operations are implemented as:
+- `insert(x, i)`: The inserting user looks up the positions `pL`, `pR` of the values to the left and right (indices `i` and `i+1`), generates a unique new position `p` such that `pL < p < pR`, and calls `add((x, p))` on the unique set. 
+- `delete(i)`: The deleting user finds the element `e` of the unique set at index `i`, then calls `delete(e)` on the unique set.
 
-Of course, we need a way to create these positions. This is the hard part---in fact, the hardest part of any CRDT---and I don't have space to go into it here; you should use an existing implementation.  <!--Generally, solutions involve a tree, sorted by the tree walk on nodes; you create a unique new position in between \\(p_L\\) and \\(p_R\\) by adding a new leaf somewhere between \\(p_L\\) and \\(p_R\\), e.g., as a right child of \\(p_L\\).-->
+Of course, we need a way to create these positions. This is the hard part---in fact, the hardest part of any CRDT---and I don't have space to go into it here; you should use an existing implementation.  <!--Generally, solutions involve a tree, sorted by the tree walk on nodes; you create a unique new position in between `pL` and `pR` by adding a new leaf somewhere between `pL` and `pR`, e.g., as a right child of `pL`.-->
 
 The important lesson here is that we had to translate indices (the language of normal, non-CRDT lists) into unique immutable positions (what the user intuitively means when they say "insert here").  This leads to our second principle of CRDT design:
 
@@ -187,13 +187,13 @@ Our last basic CRDT is the **register**. This is a variable that holds an arbitr
 
 Registers are very useful and suffice for many tasks (e.g., [Figma](https://www.figma.com/blog/how-figmas-multiplayer-technology-works/) and [Hex](https://hex.tech/blog/a-pragmatic-approach-to-live-collaboration) use them almost exclusively).
 
-The only operation on a register is \\(set(x)\\), which sets the value to \\(x\\) (in the absence of concurrent operations). We can't perform these operations literally, since if two users receive concurrent \\(set\\) operations in different orders, they'll end up with different values.
+The only operation on a register is `set(x)`, which sets the value to `x` (in the absence of concurrent operations). We can't perform these operations literally, since if two users receive concurrent `set` operations in different orders, they'll end up with different values.
 
-However, we can *add* the value \\(x\\) to a unique set, following [Principle 1](#principle-1) (\\(x\\) is something new). The state is now a set of values instead of a single value, but we'll address this soon. We can also delete old values each time \\(set(x)\\) is called, overwriting them.
+However, we can *add* the value `x` to a unique set, following [Principle 1](#principle-1) (`x` is something new). The state is now a set of values instead of a single value, but we'll address this soon. We can also delete old values each time `set(x)` is called, overwriting them.
 
 
-Thus the implementation of \\(set(x)\\) becomes:
-- For each element \\(e\\) in the unique set, call \\(delete(e)\\) on the unique set; then call \\(add(x)\\).
+Thus the implementation of `set(x)` becomes:
+- For each element `e` in the unique set, call `delete(e)` on the unique set; then call `add(x)`.
 
 The result is that at any time, the register's state is the set of all the most recent concurrently-set values.
 
@@ -246,7 +246,7 @@ A CRDT-valued map is like a CRDT object but with potentially infinite instance f
 
 ## Collections of CRDTs
 
-Our above definition of a unique set implicitly assumed that the data values \\(x\\) were immutable and serializable (capable of being sent over the network). However, we can also make a **unique set of CRDTs**, whose values are dynamically-created CRDTs.
+Our above definition of a unique set implicitly assumed that the data values `x` were immutable and serializable (capable of being sent over the network). However, we can also make a **unique set of CRDTs**, whose values are dynamically-created CRDTs.
 
 To add a new value CRDT, a user sends a unique new tag and any arguments needed to construct the value. Each recipient passes those arguments to a predefined factory method, then stores the returned CRDT in their copy of the set.
 
