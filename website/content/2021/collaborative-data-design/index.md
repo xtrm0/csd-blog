@@ -29,7 +29,7 @@ committee = [
 
 # Introduction: Collaborative Apps via CRDTs
 
-Suppose you're building a collaborative app, along the lines of Google Docs/Sheets/Slides, Figma, Notion, etc. One challenge you'll face is the actual collaboration: when one user changes the shared state, their changes need to show up for every other user. For example, if multiple users type at the same time in a text field, the result should reflect all of their changes and be consistent (identical for all users).
+Suppose you're building a collaborative app, along the lines of Google Docs/Sheets/Slides, Figma, Notion, etc., but *without a central server*. One challenge is the actual collaboration: when one user changes the shared state, their changes need to show up for every other user. For example, if multiple users type at the same time in a text field, the result should reflect all of their changes and be consistent (identical for all users).
 
 [**Conflict-free Replicated Data Types (CRDTs)**](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type) provide a solution to this challenge. They are data structures that look like ordinary data structures (maps, sets, text strings, etc.), except that they are collaborative: when one user updates their copy of a CRDT, their changes automatically show up for everyone else. Each user sees their own changes immediately, while under the hood, the CRDT broadcasts a message describing the change to everyone else.  Other users see the change once they receive this message.
 
@@ -41,7 +41,7 @@ Note that multiple users might make changes at the same time, e.g., both typing 
 
 <p></p><br />
 
-CRDTs work so long as you have some way to broadcast messages from each user to the rest of their collaborators, even if those messages might be delayed or delivered to different users in different orders. This lets you make collaborative experiences that work offline, are decentralized (don't need a central server), and/or are end-to-end encrypted ([**local-first software**](https://www.inkandswitch.com/local-first/)).
+CRDTs work even if messages might be arbitrarily delayed, or delivered to different users in different orders. This lets you make collaborative experiences that don't need a central server, work offline, and/or are end-to-end encrypted ([**local-first software**](https://www.inkandswitch.com/local-first/)).
 
 ![Google Docs doesn't let you type while offline](google_docs_offline.png)
 <p align="center"><i>CRDTs allow offline editing, unlike Google Docs.</i></p>
@@ -91,13 +91,14 @@ Receiving messages in causal order helps prevent confusing situations, like a us
 
 A CRDT is **correct**/**consistent** if two users see the same state whenever they have received the same messages, even if they received concurrent messages in different orders.
 
-Normally, CRDT correctness requires a mathematical proof---either that concurrent operations commute, or that the CRDT is a function of its causally-ordered operation history. For the CRDTs in this blog post, their correctness will be obvious enough in either model that I won't bother with explicit proofs.
+Normally, CRDT correctness requires a mathematical proof---either that concurrent operations commute, or that the CRDT is a function of its causally-ordered operation history. For the CRDTs in this blog post, their correctness should be obvious even without explicit proofs.
 
 ## Semantics vs Implementation
 
 I'll describe most CRDTs in terms of an implementation, because I find implementations easier to explain. However, my real goal is to describe their *semantics*: what users see after they perform various operations, possibly concurrently. If you can find alternate implementations that have the same behavior as the ones I describe but are more efficient, then by all means, use those instead. But I recommend starting with an unoptimized implementation like I describe here, so that you know what your CRDT is doing.
 
-<!-- But my advice for designing these optimized CRDTs is:
+<!--
+But my advice for designing these optimized CRDTs is:
 - First, design a simple, unoptimized CRDT that has the best possible semantics.
 - Then, if needed, make an optimized implementation and prove (or verify through testing) that it is equivalent to the unoptimized version.
 
@@ -162,7 +163,7 @@ List CRDTs use a different perspective.  When you type a character in a text doc
 
 "A certain place within the existing text" is vague, but at a minimum, it should be between the characters left and right of your insertion point ("on" and " table" in the example above)  Also, unlike an index, this intuitive position doesn't change if other users concurrently type earlier in the document; your new text should go between the same characters as before. That is, the position is *immutable*.
 
-This leads to the following implementation. The list's state is a unique set whose values are pairs \\((x, p)\\), where \\(x\\) is the actual value (e.g., a character), and \\(p\\) is a **unique immutable position** drawn from some totally ordered set. The user-visible state of the list is the list of values \\(x\\) ordered by their positions \\(p\\). Operations are implemented as:
+This leads to the following implementation. The list's state is a unique set whose values are pairs \\((x, p)\\), where \\(x\\) is the actual value (e.g., a character), and \\(p\\) is a **unique immutable position** drawn from some (non-CRDT) totally ordered set. The user-visible state of the list is the list of values \\(x\\) ordered by their positions \\(p\\). Operations are implemented as:
 - \\(insert(x, i)\\): The inserting user looks up the positions \\(p_L, p_R\\) of the values to the left and right (indices \\(i\\) and \\(i+1\\)), generates a unique new position \\(p\\) such that \\(p_L < p < p_R\\), and calls \\(add((x, p))\\) on the unique set. 
 - \\(delete(i)\\): The deleting user finds the element \\(e\\) of the unique set at index \\(i\\), then calls \\(delete(e)\\) on the unique set.
 
@@ -252,7 +253,7 @@ To add a new value CRDT, a user sends a unique new tag and any arguments needed 
 We can likewise make a **list of CRDTs**.
 
 **Examples:**
-- In a shared folder contain multiple collaborative documents, you can define your document CRDT, then use a unique set of document CRDTs to model the whole folder.
+- In a shared folder containing multiple collaborative documents, you can define your document CRDT, then use a unique set of document CRDTs to model the whole folder.
 <!--- In a todo-list app, you can define a "todo-item CRDT" with fields `text` and `done`, giving the item text and whether it is done. The whole app's state is then a list of todo-item CRDTs.-->
 - Continuing the Quill rich-text example from the previous section, you can model a rich-text document as a list of "rich character CRDTs", where each "rich character CRDT" consists of an immutable (non-CRDT) character plus the `attributes` map CRDT. This is sufficient to build [a simple Google Docs-style app with CRDTs](https://compoventuals-tests.herokuapp.com/host.html?network=ws&container=demos/rich-text/dist/rich_text.html) ([source](https://github.com/composablesys/collabs/blob/master/demos/rich-text/src/rich_text.ts)).
 
@@ -293,7 +294,7 @@ To implement this, the initiating user first does a causal for-each operation. T
 
 <p></p><br /> -->
 
-Concurrent+causal for-each operations are novel as far as I'm aware. They are based on a paper I, Heather Miller, and Christopher Meiklejohn wrote last year, about a composition technique we call the *semidirect product* that can implement them (albeit confusingly). <!--Unfortunately, the paper doesn't make clear what the semidirect product is doing intuitively (since we didn't understand this ourselves!). My current opinion is that concurrent+causal for-each operations are what it's really trying to do; the semidirect product is a special case of an optimized implementation, but written in the confusing traditional style (implementation + proof that concurrent operations commute). -->
+Concurrent+causal for-each operations are novel as far as I'm aware. They are based on a paper I, Heather Miller, and Christopher Meiklejohn wrote last year, about a composition technique we call the *semidirect product* that can implement them (albeit in a confusing way). <!--Unfortunately, the paper doesn't make clear what the semidirect product is doing intuitively (since we didn't understand this ourselves!). My current opinion is that concurrent+causal for-each operations are what it's really trying to do; the semidirect product is a special case of an optimized implementation, but written in the confusing traditional style (implementation + proof that concurrent operations commute). -->
 
 <!-- > If you do want to use the semidirect product as an optimized implementation, be aware that it is not as general as it could be. E.g., the recipe example can be optimized, but not using the semidirect product. I'll write up a tech report about a more general approach at some point.
 
@@ -426,24 +427,22 @@ Note that I never mentioned correctness (eventual consistency) or commutativity 
 As exercises, here are some further tweaks you can make to this design, phrased as user requests:
 1. "I'd like to have multiple sheets in the same document, accessible by tabs at the bottom of the screen, like in Excel." *Hint (highlight to reveal): <font color="white">Use some kind of list of CRDT objects.</font>*
 2. "I've noticed that if I change the font size of a cell, while at the same time someone else changes the font size for the whole row, sometimes their change overwrites mine. I'd rather keep my change, since it's more specific." *Hint: <font color="white">Use a register with a custom getter.</font>*
-3. "I want to reference other cells in formulas, e.g., `= A2 + B3`. Later, if `B3` moves to `C3`, its references should update too."
+3. "I want to reference other cells in formulas, e.g., `= A2 + B3`. Later, if `B3` moves to `C3`, its references should update too." *Hint: <font color="white">Reference with an immutable position.</font>*
 
 # Conclusion
 
-In this blog post, I described how to design CRDTs from the ground up. We covered some basic CRDTs, composition techniques, and guiding principles. Using these, we made:
-
+I hope you've gained an understanding of how CRDTs work, plus perhaps a desire to apply them in your own apps. We covered a lot:
 - **Traditional CRDTs:** Unique Set, List/Text, LWW Register, Enable-Wins Flag, Add-Wins Set, Lazy CRDT-Valued Map, and List-with-Move.
 - **Novel Operations**: Concurrent+causal for-each operations on a unique set or list.
 - **Whole Apps**: Spreadsheet, rich text, and pieces of various other apps.
 
-I hope you've gained an understanding of how these work, plus perhaps a desire to apply them to your own app ideas.
+For more info, [crdt.tech](https://crdt.tech/) collects most CRDT resources in one place. The classic intro paper is [Shapiro et al. 2011](http://dx.doi.org/10.1007/978-3-642-24550-3_29), while [Preguiça 2018](http://arxiv.org/abs/1806.10254) gives a more modern overview.
 
-For more info, [crdt.tech](https://crdt.tech/) collects most CRDT resources in one place. I've also started putting these ideas into practice into a library, [Collabs](https://www.npmjs.com/package/@collabs/collabs). You can learn more about Collabs, and see how open-source collaborative apps might work in practice, in [my Strange Loop talk](https://www.youtube.com/watch?v=Exr0iY_D-vw).
+I've also started putting these ideas into practice in a library, [Collabs](https://www.npmjs.com/package/@collabs/collabs). You can learn more about Collabs, and see how open-source collaborative apps might work in practice, in [my Strange Loop talk](https://www.youtube.com/watch?v=Exr0iY_D-vw).
 
 <!-- Future extension: list every CRDT I know of and describe it in this model (including weird ones like Riak Map - explain as memory/GC optimization). Also mention shortcomings like tree. -->
 
 <!--TODO (check while editing):
 - unique set -> Unique Set CRDT? Likewise for other names?
 - look through related work notion for other things to include
-- backticks instead of latex
-- inline references-->
+- backticks instead of latex-->
