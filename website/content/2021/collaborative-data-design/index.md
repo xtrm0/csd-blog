@@ -67,50 +67,11 @@ This blog post will instead teach you how to design CRDTs from the ground up. I'
 
 The approach in this blog post is my own way of thinking about CRDT design. It's inspired by the way [Figma](https://www.figma.com/blog/how-figmas-multiplayer-technology-works/) and [Hex](https://hex.tech/blog/a-pragmatic-approach-to-live-collaboration) describe their collaboration platforms, which likewise support complex apps by composing simple, easy-to-reason-about pieces. However, I incorporate more techniques from academic CRDT designs, enabling more flexible behavior and server-free operation.
 
-# CRDT Model
-
-I'll describe basic CRDTs using the following model, that of **operation-based CRDTs**. For each user-facing operation, the CRDT has two functions:
-1. A function called by the operating user, which outputs a message but does not modify the CRDT's state. The message is then broadcast to all users.
-2. A function called by each user (including the operator) when they receive the message, which inputs the message and modifies that user's state &amp; display accordingly.
-
-![In response to user input, the operator calls "Output message". The message is then delivered to every user's "Receive &amp; Update display" function.](message_flow.png)
-
-The end result is that each user's state reflects the operation.
-
-The network requirement for message delivery is **reliable causal broadcast**. This means:
-- Every message sent by one user is eventually delivered to every other user, possibly after an unbounded delay (**reliable broadcast**).
-- Users receive messages **in causal order**. This means that if a user sends a message \\(m\\) after receiving or sending a message \\(m^\prime\\), then all users delay receiving \\(m\\) until after receiving \\(m^\prime\\).
-
-Receiving messages in causal order helps prevent confusing situations, like a user receiving a comment on a post before receiving the post itself, which would otherwise make CRDT design more difficult. It is the strongest order that can be enforced without a central server and without extra round-trips between users, e.g., by using [vector clocks](https://en.wikipedia.org/wiki/Vector_clock).
-
-<a name="causal-order"></a>We can likewise talk about the **causal order** on operations. This is a partial order \\(<\\) defined by: if a user performs an operation \\(o\\) after receiving or sending the message for an operation \\(o^\prime\\), then \\(o^\prime < o\\). If two operations are incomparable under the causal order (neither \\(o^\prime < o\\) nor \\(o < o^\prime\\)), then they are **concurrent**. From the CRDT's perspective, concurrent operations happen simultaneously, and different users might receive them in different orders.
-
-<!-- > Many authors define the causal order as the transitive closure of \\(<\\) as we have defined it. Since we assume messages are delivered in causal order, the two definitions are equivalent.
-
-<p></p><br /> -->
-
-A CRDT is **correct**/**consistent** if two users see the same state whenever they have received the same messages, even if they received concurrent messages in different orders.
-
-Normally, CRDT correctness requires a mathematical proof---either that concurrent operations commute, or that the CRDT is a function of its causally-ordered operation history. For the CRDTs in this blog post, their correctness should be obvious even without explicit proofs.
-
-## Semantics vs Implementation
-
-I'll describe most CRDTs in terms of an implementation, because I find implementations easier to explain. However, my real goal is to describe their *semantics*: what users see after they perform various operations, possibly concurrently. If you can find alternate implementations that have the same behavior as the ones I describe but are more efficient, then by all means, use those instead. But I recommend starting with an unoptimized implementation like I describe here, so that you know what your CRDT is doing.
-
-<!--
-But my advice for designing these optimized CRDTs is:
-- First, design a simple, unoptimized CRDT that has the best possible semantics.
-- Then, if needed, make an optimized implementation and prove (or verify through testing) that it is equivalent to the unoptimized version.
-
-If you try to make an optimized implementation from scratch, you risk losing sight of what your CRDT actually does, causing weird behavior.  (ref JSON todo-list figure, Riak observed-resets, semidirect---I'm guilty of this too).-->
-
-<!-- > For example, suppose your app is used by multiple conductors to count the number of passengers boarding a train. Using the techniques in this post, you would model this collaborative counter as the set of passengers; the counter value is then the size of this set. An optimized implementation would instead just store the current count, incrementing it each time a conductor clicks "increment".
-
-<p></p><br /> -->
+> I'll describe most CRDTs in terms of an implementation, because I find implementations easier to explain. However, my real goal is to describe their *semantics*: what users see after they perform various operations, possibly concurrently. If you can find alternate implementations that have the same behavior as the ones I describe but are more efficient, then by all means, use those instead.
 
 # Basic Designs
 
-Now that our CRDT model is established, let's go over some basic CRDT designs.
+I'll start by going over some basic CRDT designs.
 
 ## Unique Set
 
@@ -120,11 +81,18 @@ Formally, the operations on the set, and their collaborative implementations, ar
 - `add(x)`: Adds an element `e = (x, t)` to the set, where `t` is a *unique new tag*, used to ensure that `(x, t)` is unique. To implement this, the adding user generates `t`, e.g., as a pair (device id, device-specific counter), then serializes `(x, t)` and broadcasts it to the other users.  The receivers deserialize `(x, t)` and add it to their local copy of the set.
 - `delete(e)`: Deletes the element `e = (x, t)` from the set.  To implement this, the deleting user serializes `t` and broadcasts it to the other users.  The receivers deserialize `t` and remove the element with tag `t` from their local copy, if it has not been deleted already.
 
+![In response to user input, the operator calls "Output message". The message is then delivered to every user's "Receive &amp; Update display" function.](message_flow.png)
+<p align="center"><i>The lifecycle of an <code>add</code> or <code>delete</code> operation.</i></p>
+
 When displaying the set to the user, you ignore the tags and just list out the data values `x`, keeping in mind that (1) they are not ordered (at least not consistently across different users), and (2) there may be duplicates.
 
 **Example:** In a flash card app, you could represent the deck of cards using a unique set, using `x` to hold the flash card's value (e.g., its front and back strings). Users can edit the deck by adding a new card or deleting an existing one, and duplicate cards are allowed. <!--Note that the collaborative state is just the *set* of cards; there is no ordering info. You could perhaps sort them alphabetically in editing mode (to make them consistent), and randomly in practice mode (deliberately inconsistent).-->
 
-It is obvious that the state of the set, as seen by a specific user, is always the set of elements for which they have received an `add` message but no `delete` messages. This holds regardless of the order in which they receive concurrent messages. Thus the unique set is a CRDT.
+When broadcasting messages, we require that they are delivered *reliably* and *in causal order*, but it's okay if they are arbitarily delayed.  (These rules apply to all CRDTs, not just the unique set.) Delivery **in causal order** means that if a user sends a message \\(m\\) after receiving or sending a message \\(m^\prime\\), then all users delay receiving \\(m\\) until after receiving \\(m^\prime\\); this is the strictest ordering we can implement without a central server and without extra round-trips between users, e.g., by using [vector clocks](https://en.wikipedia.org/wiki/Vector_clock).
+
+Messages that aren't ordered by the causal order are **concurrent**, and different users might receive them in different orders. But for **correctness**/**consistency**, we must ensure that all users end up in the same state regardless, once they have received the same set of messages.
+
+For the unique set, it is obvious that the state of the set, as seen by a specific user, is always the set of elements for which they have received an `add` message but no `delete` messages. This holds regardless of the order in which they received concurrent messages. Thus the unique set is correct.
 
 > Note that delivery in causal order is important---a `delete` operation only works if it is received after its corresponding `add` operation.
 
