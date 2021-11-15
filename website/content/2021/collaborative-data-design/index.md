@@ -2,7 +2,7 @@
 # The title of your blogpost. No sub-titles are allowed, nor are line-breaks.
 title = "Designing Data Structures for Collaborative Apps"
 # Date must be written in YYYY-MM-DD format. This should be updated right before the final PR is made.  TODO
-date = 2021-11-01
+date = 2021-11-15
 
 [taxonomies]
 # Keep any areas that apply, removing ones that don't. Do not add new areas!
@@ -56,7 +56,7 @@ If you're lucky, it's described in a [paper](https://crdt.tech/papers.html), or 
 
 ![Anomaly in a published JSON CRDT: In a collaborative todo-list, concurrently deleting an item and marking it done results in a nonsense list item with no text field.](json_anomaly.png)
 <p align="center"><i>
-In a <a href="https://doi.org/10.1109/TPDS.2017.2697382" target="_blank">published JSON CRDT</a>, when representing a todo-list using items with "text" and "done" fields, you can end up with an item having no "text" field&mdash;not what you want.
+In a <a href="https://doi.org/10.1109/TPDS.2017.2697382" target="_blank">published JSON CRDT</a>, when representing a todo-list using items with "text" and "done" fields, you can end up with an item having no "text" field.
 </i></p>
 
 <!--figure: hypothetical user Q&A asking for a change in the conflict-resolution, and you just reply "sorry".-->
@@ -67,7 +67,7 @@ This blog post will instead teach you how to design CRDTs from the ground up. I'
 
 ## Related Work
 
-The approach in this blog post is my own way of thinking about CRDT design. It's inspired by the way [Figma](https://www.figma.com/blog/how-figmas-multiplayer-technology-works/) and [Hex](https://hex.tech/blog/a-pragmatic-approach-to-live-collaboration) describe their collaboration platforms, which likewise support complex apps by composing simple, easy-to-reason-about pieces. However, I incorporate more techniques from academic CRDT designs, enabling more flexible behavior and server-free operation.
+The approach in this blog post is my own way of thinking about CRDT design. It's inspired by the way [Figma](https://www.figma.com/blog/how-figmas-multiplayer-technology-works/) and [Hex](https://hex.tech/blog/a-pragmatic-approach-to-live-collaboration) describe their collaboration platforms; they likewise support complex apps by composing simple, easy-to-reason-about pieces. However, I incorporate more techniques from academic CRDT designs, enabling more flexible behavior and server-free operation.
 
 <!--I'll describe most CRDTs in terms of an implementation, because I find implementations easier to explain. However, my real goal is to describe their *semantics*: what users see after they perform various operations, possibly concurrently. If you can find alternate implementations that have the same behavior as the ones I describe but are more efficient, then by all means, use those instead. -->
 
@@ -88,7 +88,7 @@ Formally, the user-facing operations on the set, and their collaborative impleme
 
 When displaying the set to the user, you ignore the tags and just list out the data values `x`, keeping in mind that (1) they are not ordered (at least not consistently across different users), and (2) there may be duplicates.
 
-**Example:** In a flash card app, you could represent the deck of cards using a unique set, using `x` to hold the flash card's value (e.g., its front and back strings). Users can edit the deck by adding a new card or deleting an existing one, and duplicate cards are allowed. <!--Note that the collaborative state is just the *set* of cards; there is no ordering info. You could perhaps sort them alphabetically in editing mode (to make them consistent), and randomly in practice mode (deliberately inconsistent).-->
+**Example:** In a collaborative flash card app, you could represent the deck of cards as a unique set, using `x` to hold the flash card's value (e.g., its front and back strings). Users can edit the deck by adding a new card or deleting an existing one, and duplicate cards are allowed. <!--Note that the collaborative state is just the *set* of cards; there is no ordering info. You could perhaps sort them alphabetically in editing mode (to make them consistent), and randomly in practice mode (deliberately inconsistent).-->
 
 <a name="causal-order"></a>When broadcasting messages, we require that they are delivered *reliably* and *in causal order*, but it's okay if they are arbitarily delayed.  (These rules apply to all CRDTs, not just the unique set.) Delivery **in causal order** means that if a user sends a message \\(m\\) after receiving or sending a message \\(m^\prime\\), then all users delay receiving \\(m\\) until after receiving \\(m^\prime\\). This is the strictest ordering we can implement without a central server and without extra round-trips between users, e.g., by using [vector clocks](https://en.wikipedia.org/wiki/Vector_clock).
 
@@ -104,7 +104,7 @@ We now have our first principle of CRDT design:
 
 <a name="principle-1"></a>**Principle 1. Use the unique set CRDT for operations that "add" or "create" a unique new thing.**
 
-Although it is simple, the unique set forms the basis for the rest of our CRDT designs.
+Although it is simple, the unique set forms the basis for the rest of our CRDTs.
 
 <!-- > **Aside.** There is a sense in which the unique set is "CRDT-complete", i.e., it can be used to implement any CRDT semantics: you use a unique set to store the complete operation history together with causal ordering info, then compute the state as a function of this history.
 
@@ -125,7 +125,7 @@ One approach would use indices directly: when a user calls `insert(x, i)`, they 
 ![The *gray* cat jumped on **the** table.](ot.png)
 <p align="center"><i>Alice typed " the" at index 17, but concurrently, Bob typed " gray" in front of her. From Bob's perspective, Alice's insert should happen at index 22.</i></p>
 
-Its possible to work around this by "transforming" `i` to account for concurrent edits. This idea loads to [**Operational Transformation (OT)**](https://en.wikipedia.org/wiki/Operational_transformation), the earliest-invented approach to collaborative text editing, and the one used in Google Docs and most existing apps. Unfortunately, OT algorithms get quite complicated, especially when you don't have a central server to help you.
+Its possible to work around this by "transforming" `i` to account for concurrent edits. That idea loads to [**Operational Transformation (OT)**](https://en.wikipedia.org/wiki/Operational_transformation), the earliest-invented approach to collaborative text editing, and the one used in Google Docs and most existing apps. Unfortunately, OT algorithms are quite complicated, especially when you don't have a central server to help you.
 
 <!--Several incorrect attempts at server-free OT were published before the [first correct one](https://core.ac.uk/download/pdf/54049928.pdf) in 2005 (cite, check correctness via citations)---the same year the [first CRDT paper](https://hal.inria.fr/inria-00071240/document) was published. -->
 
@@ -137,13 +137,13 @@ This leads to the following implementation. The list's state is a unique set who
 - `insert(x, i)`: The inserting user looks up the positions `pL`, `pR` of the values to the left and right (indices `i` and `i+1`), generates a unique new position `p` such that `pL < p < pR`, and calls `add((x, p))` on the unique set. 
 - `delete(i)`: The deleting user finds the element `e` of the unique set at index `i`, then calls `delete(e)` on the unique set.
 
-Of course, we need a way to create the positions. That's the hard part---in fact, the hardest part of any CRDT---and I don't have space to go into it here; you should use an existing algorithm (e.g., [RGA](http://dx.doi.org/10.1016/j.jpdc.2010.12.006)) or implementation (e.g., [Yjs's `Y.Array`](https://docs.yjs.dev/api/shared-types/y.array)).  <!--Generally, solutions involve a tree, sorted by the tree walk on nodes; you create a unique new position in between `pL` and `pR` by adding a new leaf somewhere between `pL` and `pR`, e.g., as a right child of `pL`.-->
+Of course, we need a way to create the positions `p`. That's the hard part---in fact, the hardest part of any CRDT---and I don't have space to go into it here; you should use an existing algorithm (e.g., [RGA](http://dx.doi.org/10.1016/j.jpdc.2010.12.006)) or implementation (e.g., [Yjs's `Y.Array`](https://docs.yjs.dev/api/shared-types/y.array)).  <!--Generally, solutions involve a tree, sorted by the tree walk on nodes; you create a unique new position in between `pL` and `pR` by adding a new leaf somewhere between `pL` and `pR`, e.g., as a right child of `pL`.-->
 
-The important lesson here is that we had to translate indices (the language of normal, non-CRDT lists) into unique immutable positions (what the user intuitively means when they say "insert here").  This leads to our second principle of CRDT design:
+The important lesson here is that we had to translate indices (the language of normal, non-CRDT lists) into unique immutable positions (what the user intuitively means when they say "insert here").  That leads to our second principle of CRDT design:
 
 <a name="principle-2"></a>**Principle 2. Express operations in terms of user intention---what the operation means to the user, intuitively. This might differ from the closest ordinary data type operation.**
 
-The works because users often have some idea what one operation should do in the face of concurrent operations. If you can capture that intuition, the resulting operations won't conflict.
+This principle works because users often have some idea what one operation should do in the face of concurrent operations. If you can capture that intuition, then the resulting operations won't conflict.
 
 ## Registers
 
@@ -198,7 +198,7 @@ We now have enough basic CRDTs to start making more complicated data structures 
 The simplest composition technique is to use multiple CRDTs side-by-side. By making them be instance fields in a class, you obtain a **CRDT Object**, which is itself a CRDT (trivially correct). The power of CRDT objects comes from using standard OOP techniques, e.g., implementation hiding.
 
 **Examples:**
-- In a flash card app, to make individual cards editable, you could represent each card as a CRDT object with two text CRDT instance fields, one for the front and one for the back.
+- In a collaborative flash card app, to make individual cards editable, you could represent each card as a CRDT object with two text CRDT instance fields, one for the front and one for the back.
 - You can represent the position and size of an image in a collaborative slide editor by using separate registers for the left, top, width, and height. <!--To get a complete image object, you might also add registers for border color/size/style, a text CRDT for the caption, a register for the image source (unless it's immutable, in which case you can use an ordinary, non-CRDT instance field), etc.-->
 <!--- Recall that we defined lists and registers in terms of the unique set. We can consider these as CRDT objects as well, even though they just have one instance field (the set). The object lets us delegate operations and reads to the inner set while exposing the API of a list/register.-->
 
@@ -207,7 +207,7 @@ The simplest composition technique is to use multiple CRDTs side-by-side. By mak
 A CRDT-valued map is like a CRDT object but with potentially infinite instance fields, one for each allowed map key. Every key/value pair is implicitly always present in the map, but values are only explicitly constructed in memory as needed, using a predefined factory method (like Apache Commons' [LazyMap](https://commons.apache.org/proper/commons-collections/apidocs/org/apache/commons/collections4/map/LazyMap.html)).
 
 **Examples:**
-- Consider a shared notes app in which users can archive notes, then restore them later. To indicate which notes are normal (not archived), we want to store them in a set. A unique set won't work, since the same note can be added (restored) multiple times. Instead, you can use a CRDT-valued map whose keys are the documents and whose values are [enable-wins flags](#enable-wins-flag); the value of the flag for key `doc` indicates whether `doc` is in the set. This gives the **Add-Wins Set** CRDT.
+- Consider a shared notes app in which users can archive notes, then restore them later. To indicate which notes are normal (not archived), we want to store them in a set. A unique set won't work, since the same note can be added (restored) multiple times. Instead, you can use a CRDT-valued map whose keys are the documents and whose values are [enable-wins flags](#enable-wins-flag); the value of the flag for key `doc` indicates whether `doc` is in the set. This gives the **Add-Wins Set**.
 - [Quill](https://quilljs.com/) lets you easily display and edit rich text in a browser app. In a Quill document, each character has an `attributes` map, which contains arbitrary key-value pairs describing formatting (e.g., `"bold": true`). You can model this using a CRDT-valued map with arbitrary keys and [LWW register](#lww-register) values; the value of the register for key `attr` indicates the current value for `attr`.
 
 <!-- > If you want a non-lazy map, in which keys have explicit membership and can be deleted (technically needed for the Quill example), you can use a lazy CRDT-valued map plus an add-wins set to track which keys are present.
@@ -238,13 +238,13 @@ To accommodate as many operations as possible while preserving user intention, I
 <a name="principle-4"></a>**Principle 4. Independent operations (in the user's mind) should act on independent state.**
 
 **Examples:**
-- As mentioned earlier, you can represent the position and size of an image in a collaborative slide editor by using separate registers for the left, top, width, and height. In principle, you could instead use a single register whose value is a tuple (left, top, width, height), but this would violate Principle 4. Indeed, then if one user moved the image while another resized it, one of their changes would overwrite the other, instead of both moving and resizing. <!--Likewise, it would be a mistake to replace (left, top, width, height) with (left, top, right, bottom) (this also violates [Principle 2](#principle-2)).-->
+- As mentioned earlier, you can represent the position and size of an image in a collaborative slide editor by using separate registers for the left, top, width, and height. If you wanted, you could instead use a single register whose value is a tuple (left, top, width, height), but this would violate Principle 4. Indeed, then if one user moved the image while another resized it, one of their changes would overwrite the other, instead of both moving and resizing. <!--Likewise, it would be a mistake to replace (left, top, width, height) with (left, top, right, bottom) (this also violates [Principle 2](#principle-2)).-->
 - Again in a collaborative slide editor, you might initially model the slide list as a list of slide CRDTs. However, this provides no way for users to move slides around in the list, e.g., swap the order of two slides. You could implement a move operation using cut-and-paste, but then slide edits concurrent to a move will be lost, even though they are intuitively independent operations.<br />
-<a name="list-with-move"></a>Following Principle 4, you should instead implement move operations by modifying some state independent of the slide itself. You can do this by replacing the *list* of slides with a *set of pairs* `(slide, positionReg)`, where `positionReg` is an LWW register indicating the position. To move a slide, you create a unique new position like in a list CRDT, then set the value `positionReg` equal to that position. This construction gives the [**list-with-move**](https://doi.org/10.1145/3380787.3393677) CRDT.
+<a name="list-with-move"></a>Following Principle 4, you should instead implement move operations by modifying some state independent of the slide itself. You can do this by replacing the *list* of slides with a *set of pairs* `(slide, positionReg)`, where `positionReg` is an LWW register indicating the position. To move a slide, you create a unique new position like in a list CRDT, then set the value of `positionReg` equal to that position. This construction gives the [**list-with-move**](https://doi.org/10.1145/3380787.3393677) CRDT.
 
 # New: Concurrent+Causal For-Each Operations
 
-There's one more trick I want to show you. Sometimes, when performing a for-each operation on a unique set or list CRDT ([Principle 3a](#principle-3a)), you don't just want to affect existing (casually prior) elements. You also want to affect *elements that are added/inserted concurrently*.
+There's one more trick I want to show you. Sometimes, when performing a for-each operation on a unique set or list CRDT ([Principle 3a](#principle-3a)), you don't just want to affect existing (causally prior) elements. You also want to affect *elements that are added/inserted concurrently*.
 
 For example:
 - In a rich text editor, if one user bolds a range of text, while concurrently, another user types in the middle of the range, the latter text should also be bolded.
@@ -288,7 +288,7 @@ For easy reference, here are our principles of CRDT design.
 
 # Case Study: A Collaborative Spreadsheet
 
-Now let's get real: we're going to design a CRDT for a collaborative spreadsheet editor (think Google Sheets).
+Now let's get practical: we're going to design a CRDT for a collaborative spreadsheet editor (think Google Sheets).
 
 As practice, try sketching a design yourself before reading any further. The rest of this section describes how I would do it, but don't worry if you come up with something different---there's no one right answer! The point of this blog post is to give you the confidence to design and tweak CRDTs like this yourself, not to dictate "the one true spreadsheet CRDT™".
 
@@ -332,7 +332,7 @@ class Row extends CrdtObject {
 Also, we want to be able to move rows and columns around. We already described how to do this using a [list-with-move](#list-with-move):
 ```ts
 class ListWithMove<T> extends CrdtObject {
-  state: UniqueSet<[position: LwwRegister<ListCrdtPosition>, value: T];
+  state: UniqueSet<[value: T, positionReg: LwwRegister<ListCrdtPosition>];
 }
 
 rows: ListWithMove<Row>;
@@ -340,8 +340,8 @@ columns: ListWithMove<Column>;
 ```
 
 Next, we can also perform operations on every cell in a row, like changing the font size of every cell. For each such operation, we have three options:
-1. Use a causal for-each operation ([Principle 3a](#principle-3a)). This will affect all current cells in the row, but not any cells that are created concurrently (because a new column is inserted). E.g., a "clear" operation that sets every cell's value to `""`.
-2. Use a concurrent+causal for-each operation ([Principle 3b](#principle-3b)). This will affect all current cells in the row *and* any those created concurrently. E.g., changing the font size of a whole row.
+1. Use a causal for-each operation ([Principle 3a](#principle-3a)). This will affect all current cells in the row, but not any cells that are created concurrently (when a new column is inserted). E.g., a "clear" operation that sets every cell's value to `""`.
+2. Use a concurrent+causal for-each operation ([Principle 3b](#principle-3b)). This will affect all current cells in the row *and* any created concurrently. E.g., changing the font size of a whole row.
 3. Use an independent state that affects the row itself, not the cells ([Principle 4](#principle-4)). E.g., our usage of `Row.height` for the height of a row.
 
 <!-- > **Aside.** Note that the for-each loops loop over every cell in the row, even blank cells that have never been used. This has the downside of making all those cells explicitly exist in the CRDT-valued map, increasing memory usage. We tolerate this since our focus is to pin down the semantics, not give an efficient implementation. Once the semantics are pinned down, though, you are free to optimize the implementation.
@@ -383,7 +383,7 @@ class Cell extends CrdtObject {
 }
 
 class ListWithMove<T> extends CrdtObject {
-  state: UniqueSet<[position: LwwRegister<ListCrdtPosition>, value: T];
+  state: UniqueSet<[value: T, positionReg: LwwRegister<ListCrdtPosition>];
 }
 
 // ---- App state ----
@@ -395,7 +395,7 @@ cells: CrdtValuedMap<[row: Row, column: Column], Cell>;
 Note that I never mentioned correctness explicitly. Because we assembled the design from trivially-correct pieces, it is also trivially correct. Plus, it should be straightforward to reason out what would happen in various concurrency scenarios.
 
 As exercises, here are some further tweaks you can make to this design, phrased as user requests:
-1. "I'd like to have multiple sheets in the same document, accessible by tabs at the bottom of the screen, like in Excel." *Hint (highlight to reveal): <font color="white">Use some kind of list of CRDT objects.</font>*
+1. "I'd like to have multiple sheets in the same document, accessible by tabs at the bottom of the screen, like in Excel." *Hint (highlight to reveal): <font color="white">Use a list of CRDTs.</font>*
 2. "I've noticed that if I change the font size of a cell, while at the same time someone else changes the font size for the whole row, sometimes their change overwrites mine. I'd rather keep my change, since it's more specific." *Hint: <font color="white">Use a register with a custom getter.</font>*
 3. "I want to reference other cells in formulas, e.g., `= A2 + B3`. Later, if `B3` moves to `C3`, its references should update too." *Hint: <font color="white">Store the reference as something immutable.</font>*
 
