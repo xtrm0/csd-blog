@@ -406,13 +406,11 @@ I hope you've gained an understanding of how CRDTs work, plus perhaps a desire t
 - **Novel Operations**: Concurrent+causal for-each operations on a unique set or list.
 - **Whole Apps**: Spreadsheet, rich text, and pieces of various other apps.
 
-For more info, [crdt.tech](https://crdt.tech/) collects most CRDT resources in one place. For traditional CRDTs, the classic intro paper is [Shapiro et al. 2011](http://dx.doi.org/10.1007/978-3-642-24550-3_29), while [Preguiça 2018](http://arxiv.org/abs/1806.10254) gives a more modern overview.
+For more info, [crdt.tech](https://crdt.tech/) collects most CRDT resources in one place. For traditional CRDTs, the classic reference is [Shapiro et al. 2011](http://dx.doi.org/10.1007/978-3-642-24550-3_29), while [Preguiça 2018](http://arxiv.org/abs/1806.10254) gives a more modern overview.
 
 I've also started putting these ideas into practice in a library, [Collabs](https://www.npmjs.com/package/@collabs/collabs). You can learn more about Collabs, and see how open-source collaborative apps might work in practice, in [my Strange Loop talk](https://www.youtube.com/watch?v=Exr0iY_D-vw).
 
 <!-- Future extension: list every CRDT I know of and describe it in this model (including weird ones like Riak Map - explain as memory/GC optimization). Also mention shortcomings like tree. -->
 
 <!--TODO (check while editing):
-- unique set -> Unique Set CRDT? Likewise for other names?
-- look through related work notion for other things to include
-- backticks instead of latex-->
+- look through related work notion for other things to include-->
