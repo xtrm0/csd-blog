@@ -33,7 +33,7 @@ Suppose you're building a collaborative app, along the lines of Google Docs/Shee
 
 [**Conflict-free Replicated Data Types (CRDTs)**](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type) provide a solution to this challenge. They are data structures that look like ordinary data structures (maps, sets, text strings, etc.), except that they are collaborative: when one user updates their copy of a CRDT, their changes automatically show up for everyone else. Each user sees their own changes immediately, while under the hood, the CRDT broadcasts a message describing the change to everyone else.  Other users see the change once they receive this message.
 
-TODO: example/diagram (from talk)
+![CRDTs broadcast messages to relay changes](message_sending.png)
 
 Note that multiple users might make changes at the same time, e.g., both typing at once. Since each user sees their own changes immediately, their views of the document will temporarily diverge. However, CRDTs guarantee that once the users receive each others' messages, they'll see identical document states again: this is the definition of **CRDT correctness**. Ideally, this state will also be "reasonable", i.e., it will incorporate both of their edits in the way that the users expect, without requiring any git-style manual merging.
 
@@ -43,7 +43,8 @@ Note that multiple users might make changes at the same time, e.g., both typing 
 
 CRDTs work so long as you have some way to broadcast messages from each user to the rest of their collaborators, even if those messages might be delayed or delivered to different users in different orders. This lets you make collaborative experiences that work offline, are decentralized (don't need a central server), and/or are end-to-end encrypted ([**local-first software**](https://www.inkandswitch.com/local-first/)).
 
-TODO: examples of offline work failure: existing apps don't work offline, e.g., Google Docs.
+![Google Docs doesn't let you type while offline](google_docs_offline.png)
+<p align="center"><i>CRDTs allow offline editing, unlike Google Docs.</i></p>
 
 I'm particularly excited by the potential for **open-source collaborative apps** that anyone can distribute or modify, without needing to run their own hosting for each app.
 
@@ -53,9 +54,12 @@ Having read all that, let's say you choose to use a CRDT for your collaborative 
 
 If you're lucky, it's described in a [paper](https://crdt.tech/papers.html), or even better, implemented in a [library](https://crdt.tech/implementations). But these tend to be simple or one-size-fits-all data structures: maps, text strings, unstructured JSON, etc. You can usually rearrange your app's state to make it fit in these CRDTs; and if users make changes at the same time, CRDT correctness guarantees that you'll get *some* consistent result. However, it might not be what you or your users expect. Worse, you have little leeway to customize this behavior.
 
-TODO: figure: JSON paper weird todo-list behavior (not what you expect, will look weird to users too).
+![Anomaly in a published JSON CRDT: In a collaborative todo-list, concurrently deleting an item and marking it done results in a nonsense list item with no text field.](json_anomaly.png)
+<p align="center"><i>
+In a <a href="https://doi.org/10.1109/TPDS.2017.2697382">published JSON CRDT</a>, when representing a todo-list using items with "text" and "done" fields, you can end up with an item having no "text" field.
+</i></p>
 
-TODO: figure: hypothetical user Q&A asking for a change in the conflict-resolution, and you just reply "sorry".
+<!--figure: hypothetical user Q&A asking for a change in the conflict-resolution, and you just reply "sorry".-->
 
 This blog post will instead teach you how to design CRDTs from the ground up. I'll present a few simple CRDTs that are obviously correct, plus ways to compose them together into complicated whole-app CRDTs that are still obviously correct. I'll also present principles of CRDT design that should help guide you through the process. To cap it off, we'll design a CRDT for a collaborative spreadsheet.
 
@@ -91,13 +95,11 @@ Normally, CRDT correctness requires a mathematical proof---either that concurren
 
 ## Semantics vs Implementation
 
-I'll describe most CRDTs in terms of an implementation, because I find implementations easier to explain. However, my real goal is to describe their *semantics*: what users see after they perform various operations, possibly concurrently.
-
-If you can find alternate implementations that have the same behavior as the ones I describe but are more efficient, then by all means, use those instead. But my advice for designing these optimized CRDTs is:
+I'll describe most CRDTs in terms of an implementation, because I find implementations easier to explain. However, my real goal is to describe their *semantics*: what users see after they perform various operations, possibly concurrently. If you can find alternate implementations that have the same behavior as the ones I describe but are more efficient, then by all means, use those instead. But I recommend starting with an unoptimized implementation like I describe here, so that you know what your CRDT is doing. <!--But my advice for designing these optimized CRDTs is:
 - First, design a simple, unoptimized CRDT that has the best possible semantics.
 - Then, if needed, make an optimized implementation and prove (or verify through testing) that it is equivalent to the unoptimized version.
 
-If you try to make an optimized implementation from scratch, you risk losing sight of what your CRDT actually does, causing weird behavior.  (TODO: ref JSON todo-list figure, Riak observed-resets, semidirect---I'm guilty of this too).
+If you try to make an optimized implementation from scratch, you risk losing sight of what your CRDT actually does, causing weird behavior.  (ref JSON todo-list figure, Riak observed-resets, semidirect---I'm guilty of this too).-->
 
 <!-- > For example, suppose your app is used by multiple conductors to count the number of passengers boarding a train. Using the techniques in this post, you would model this collaborative counter as the set of passengers; the counter value is then the size of this set. An optimized implementation would instead just store the current count, incrementing it each time a conductor clicks "increment".
 
@@ -203,14 +205,15 @@ One option is to accept this as the state, and present all conflicting values to
 
 <a name="lww-register"></a>Another option is to pick a value arbitrarily but deterministically.  E.g., the **Last-Writer Wins (LWW) Register** tags each value with a wall-clock timestamp when it is set, then picks the value with the latest timestamp.
 
-TODO: figure: Pixelpusher LWW + MVR.
+![Grid of pixels, some conflicting (outlined in red). One conflicting pixel has been clicked on, revealing the conflicting choices.](pixelpusher.png)
+<p align="center"><i>In <a href="https://medium.com/@pvh/pixelpusher-real-time-peer-to-peer-collaboration-with-react-7c7bc8ecbf74">Pixelpusher</a>, a collaborative pixel art editor, each pixel shows one color (LWW Register), but you can click to pop out all conflicting colors (MVR). Image credit: Peter van Hardenberg (<a href="https://miro.medium.com/max/270/1*tXSBtdqf6yBCO6i77VVH1A.png">original</a>)</i></p>
 
 In general, you can define the value getter to be an arbitrary deterministic function of the set of values.
 
 **Examples:**
 - If the values are colors, you can average their RGB coordinates. That seems like fine behavior for pixels in a collaborative whiteboard.
 
-TODO: figure: illustration
+<!--figure: illustration-->
 
 - <a name="enable-wins-flag"></a>If the values are booleans, you can choose to prefer `true` values, i.e., the register's value is `true` if its set contains any `true` values. This gives the **Enable-Wins Flag**.
 
@@ -265,7 +268,7 @@ To accommodate as many operations as possible while preserving user intention, I
 **Examples:**
 - As mentioned earlier, you can represent the position and size of an image in a collaborative slide editor by using separate registers for the left, top, width, and height. In principle, you could instead use a single register whose value is a tuple (left, top, width, height), but this would violate Principle 4. Indeed, then if one user moved the image while another resized it, one of their changes would overwrite the other, instead of both moving and resizing. <!--Likewise, it would be a mistake to replace (left, top, width, height) with (left, top, right, bottom) (this also violates [Principle 2](#principle-2)).-->
 - Again in a collaborative slide editor, you might initially model the slide list as a list of slide CRDTs. However, this provides no way for users to move slides around in the list, e.g., swap the order of two slides. You could implement a move operation using cut-and-paste, but then slide edits concurrent to a move will be lost, even though these are intuitively independent operations.<br />
-<a name="list-with-move"></a>Following Principle 4, you should instead implement move operations by modifying some state independent of the slide itself. You can do this by replacing the *list* of slides with a *set of pairs* (slide, `positionReg`), where `positionReg` is an LWW register indicating the position. To move a slide, you create a unique new position like in a list CRDT, then set the value `positionReg` equal to that position. This construction gives the **list-with-move** CRDT (TODO: cite).
+<a name="list-with-move"></a>Following Principle 4, you should instead implement move operations by modifying some state independent of the slide itself. You can do this by replacing the *list* of slides with a *set of pairs* (slide, `positionReg`), where `positionReg` is an LWW register indicating the position. To move a slide, you create a unique new position like in a list CRDT, then set the value `positionReg` equal to that position. This construction gives the [**list-with-move** CRDT](https://doi.org/10.1145/3380787.3393677).
 
 # New: Concurrent+Causal For-Each Operations
 
@@ -299,7 +302,7 @@ Concurrent+causal for-each operations are novel as far as I'm aware. They are ba
 
 <!--# Summary: Principles of CRDT Design
 
-TODO: also non-principle advice (basic designs, composition techniques)
+also non-principle advice (basic designs, composition techniques)
 
 For easy reference, here are our principles of CRDT design.
 
@@ -442,3 +445,4 @@ TODO (check while editing):
 - unique set -> Unique Set CRDT? Likewise for other names?
 - look through related work notion for other things to include
 - backticks instead of latex
+- inline references
