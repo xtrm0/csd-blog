@@ -9,7 +9,7 @@ date = 2021-11-15
 areas = ["Systems", "Programming Languages"]
 # Tags can be set to a collection of a few keywords specific to your blogpost.
 # Consider these similar to keywords specified for a research paper.
-tags = ["collaborative apps", "data structures", "CRDTs", "eventual consistency"]
+tags = ["collaborative apps", "data structures", "CRDTs", "composition"]
 
 [extra]
 # For the author field, you can decide to not have a url.
@@ -56,7 +56,7 @@ If you're lucky, it's described in a [paper](https://crdt.tech/papers.html), or 
 
 ![Anomaly in a published JSON CRDT: In a collaborative todo-list, concurrently deleting an item and marking it done results in a nonsense list item with no text field.](json_anomaly.png)
 <p align="center"><i>
-In a <a href="https://doi.org/10.1109/TPDS.2017.2697382" target="_blank">published JSON CRDT</a>, when representing a todo-list using items with "text" and "done" fields, you can end up with an item having no "text" field.
+In a <a href="https://doi.org/10.1109/TPDS.2017.2697382" target="_blank">published JSON CRDT</a>, when representing a todo-list using items with "title" and "done" fields, you can end up with an item <code>{"done": true}</code> having no "title" field. Image credit: Figure 6 from the paper.
 </i></p>
 
 <!--figure: hypothetical user Q&A asking for a change in the conflict-resolution, and you just reply "sorry".-->
@@ -67,7 +67,7 @@ This blog post will instead teach you how to design CRDTs from the ground up. I'
 
 ## Related Work
 
-The approach in this blog post is my own way of thinking about CRDT design. It's inspired by the way [Figma](https://www.figma.com/blog/how-figmas-multiplayer-technology-works/) and [Hex](https://hex.tech/blog/a-pragmatic-approach-to-live-collaboration) describe their collaboration platforms; they likewise support complex apps by composing simple, easy-to-reason-about pieces. However, I incorporate more techniques from academic CRDT designs, enabling more flexible behavior and server-free operation.
+The CRDTs I describe are based on [Shapiro et al. 2011](http://dx.doi.org/10.1007/978-3-642-24550-3_29) unless noted otherwise. However, the way I describe them, and the design principles and composition techniques, are my own way of thinking about CRDT design. It's inspired by the way [Figma](https://www.figma.com/blog/how-figmas-multiplayer-technology-works/) and [Hex](https://hex.tech/blog/a-pragmatic-approach-to-live-collaboration) describe their collaboration platforms; they likewise support complex apps by composing simple, easy-to-reason-about pieces. Relative to those platforms, I incorporate more academic CRDT designs, enabling more flexible behavior and server-free operation.
 
 <!--I'll describe most CRDTs in terms of an implementation, because I find implementations easier to explain. However, my real goal is to describe their *semantics*: what users see after they perform various operations, possibly concurrently. If you can find alternate implementations that have the same behavior as the ones I describe but are more efficient, then by all means, use those instead. -->
 
@@ -92,7 +92,7 @@ When displaying the set to the user, you ignore the tags and just list out the d
 
 <a name="causal-order"></a>When broadcasting messages, we require that they are delivered *reliably* and *in causal order*, but it's okay if they are arbitarily delayed.  (These rules apply to all CRDTs, not just the unique set.) Delivery **in causal order** means that if a user sends a message \\(m\\) after receiving or sending a message \\(m^\prime\\), then all users delay receiving \\(m\\) until after receiving \\(m^\prime\\). This is the strictest ordering we can implement without a central server and without extra round-trips between users, e.g., by using [vector clocks](https://en.wikipedia.org/wiki/Vector_clock).
 
-Messages that aren't ordered by the causal order are **concurrent**, and different users might receive them in different orders. But for **correctness**/**consistency**, we must ensure that all users end up in the same state regardless, once they have received the same messages.
+Messages that aren't ordered by the causal order are **concurrent**, and different users might receive them in different orders. But for **CRDT correctness**/**eventual consistency**, we must ensure that all users end up in the same state regardless, once they have received the same messages.
 
 For the unique set, it is obvious that the state of the set, as seen by a specific user, is always the set of elements for which they have received an `add` message but no `delete` messages. This holds regardless of the order in which they received concurrent messages. Thus the unique set is correct.
 
@@ -106,9 +106,13 @@ We now have our first principle of CRDT design:
 
 Although it is simple, the unique set forms the basis for the rest of our CRDTs.
 
+> **Aside.** Traditionally, one proves CRDT correctness by proving that concurrent messages *commute*---they have the same effect regardless of delivery order ([Shapiro et al. 2011](http://dx.doi.org/10.1007/978-3-642-24550-3_29))---or that the final state is a function of the causally-ordered message history ([Baquero, Almeida, and Shoker 2014](https://doi.org/10.1007/978-3-662-43352-2_11)). However, as long as you stick to the techniques in this blog post, you won't need explicit proofs: everything builds on the unique set in ways that trivially preserve CRDT correctness. For example, a deterministic view of a unique set is obviously still a CRDT.
+
+<p></p><br /> 
+
 <!-- > **Aside.** There is a sense in which the unique set is "CRDT-complete", i.e., it can be used to implement any CRDT semantics: you use a unique set to store the complete operation history together with causal ordering info, then compute the state as a function of this history.
 
-<p></ p><br /> -->
+<p></p><br /> -->
 
 ## Lists
 
@@ -125,11 +129,11 @@ One approach would use indices directly: when a user calls `insert(x, i)`, they 
 ![The *gray* cat jumped on **the** table.](ot.png)
 <p align="center"><i>Alice typed " the" at index 17, but concurrently, Bob typed " gray" in front of her. From Bob's perspective, Alice's insert should happen at index 22.</i></p>
 
-Its possible to work around this by "transforming" `i` to account for concurrent edits. That idea loads to [**Operational Transformation (OT)**](https://en.wikipedia.org/wiki/Operational_transformation), the earliest-invented approach to collaborative text editing, and the one used in Google Docs and most existing apps. Unfortunately, OT algorithms are quite complicated, especially when you don't have a central server to help you.
+It's possible to work around this by "transforming" `i` to account for concurrent edits. That idea loads to [**Operational Transformation (OT)**](https://en.wikipedia.org/wiki/Operational_transformation), the earliest-invented approach to collaborative text editing, and the one used in Google Docs and most existing apps. Unfortunately, OT algorithms are quite complicated, leading to numerous [flawed algorithms](https://core.ac.uk/download/pdf/54049928.pdf). You can reduce complexity by using a central server to manage the document, like Google Docs does, but that precludes decentralized networks, end-to-end encryption, and server-free open-source apps.
 
 <!--Several incorrect attempts at server-free OT were published before the [first correct one](https://core.ac.uk/download/pdf/54049928.pdf) in 2005 (cite, check correctness via citations)---the same year the [first CRDT paper](https://hal.inria.fr/inria-00071240/document) was published. -->
 
-List CRDTs use a different perspective.  When you type a character in a text document, you probably don't think of its position as "index 17" or whatever; instead, its position is at a certain place within the existing text.
+List CRDTs use a different perspective from OT.  When you type a character in a text document, you probably don't think of its position as "index 17" or whatever; instead, its position is at a certain place within the existing text.
 
 "A certain place within the existing text" is vague, but at a minimum, it should be between the characters left and right of your insertion point ("on" and " table" in the example above)  Also, unlike an index, this intuitive position doesn't change if other users concurrently type earlier in the document; your new text should go between the same characters as before. That is, the position is *immutable*.
 
@@ -170,6 +174,8 @@ The result is that at any time, the register's state is the set of all the most 
 Loops of the form "for each element of a collection, do something" are common in programming. We just saw a way to extend them to CRDTs: "for each element of a unique set, do some CRDT operation". We call this a **causal for-each operation** because it only affects elements that are prior to the for-each operation in the [causal order](#causal-order). It's useful enough that we make it our next principle of CRDT design:
 
 <a name="principle-3a"></a>**Principle 3a. For operations that do something "for each" element of a collection, one option is to use a *causal for-each operation* on a unique set (or list CRDT).**
+
+(Later we will expand on this with [Principle 3b](#principle-3b), which also concerns for-each operations.)
 
 Returning to registers, we still need to handle the fact that our state is a set of values, instead of a specific value.
 
@@ -214,6 +220,10 @@ A CRDT-valued map is like a CRDT object but with potentially infinite instance f
 
 <p></p><br /> -->
 
+> CRDT-valued Maps are inspired by the [Riak map](https://github.com/basho).
+
+<p></p><br />
+
 ## Collections of CRDTs
 
 Our above definition of a unique set implicitly assumed that the data values `x` were immutable and serializable (capable of being sent over the network). However, we can also make a **unique set of CRDTs**, whose values are dynamically-created CRDTs.
@@ -254,7 +264,7 @@ For example:
 In other words, the first user's intended operation is "for each character in the range *including ones inserted concurrently*, bold it".
 - In a collaborative recipe editor, if one user clicks a "double the recipe" button, while concurrently, another user edits an amount, then their edit should also be doubled. Otherwise, the recipe will be out of proportion, and the meal will be ruined!
 
-I call such an operation a **concurrent+causal for-each operation**. To accomodate the above examples, I propose:
+I call such an operation a **concurrent+causal for-each operation**. To accomodate the above examples, I propose the following addendum to [Principle 3a](#principle-3a):
 
 <a name="principle-3b"></a>**Principle 3b. For operations that do something "for each" element of a collection, another option is to use a *concurrent+causal for-each operation* on a unique set (or list CRDT).**
 
@@ -296,9 +306,9 @@ As practice, try sketching a design yourself before reading any further. The res
 
 To start off, consider an individual cell. Fundamentally, it consists of a text string. We could make this a text (list) CRDT, but usually, you don't edit individual cells collaboratively; instead, you type the new value of the cell, hit enter, and then its value shows up for everyone else. This suggests instead using a register, e.g., an LWW register.
 
-Besides the text content, a cell can have properties like its font size, whether word wrap is enabled, etc. Since changing these properties are all independent operations, following [Principle 4](#principle-4), they should have independent state. This suggests using a CRDT object to represent the cell, with a different CRDT instance field for each property. In pseudocode:
+Besides the text content, a cell can have properties like its font size, whether word wrap is enabled, etc. Since changing these properties are all independent operations, following [Principle 4](#principle-4), they should have independent state. This suggests using a CRDT object to represent the cell, with a different CRDT instance field for each property. In pseudocode (classes are implicity CRDT objects):
 ```ts
-class Cell extends CrdtObject {
+class Cell {
   content: LwwRegister<string>;
   fontSize: LwwRegister<number>;
   wordWrap: EnableWinsFlag;
@@ -322,7 +332,7 @@ Now you can insert or delete rows and columns by calling the appropriate operati
 
 Speaking of rows and columns, there's more we can do here. For example, rows have editable properties like their height, whether they are visible, etc. These properties are independent, so they should have independent states ([Principle 4](#principle-4)). This suggests making `Row` into a CRDT object:
 ```ts
-class Row extends CrdtObject {
+class Row {
   height: LwwRegister<number>;
   isVisible: EnableWinsFlag;
   // ...
@@ -331,7 +341,7 @@ class Row extends CrdtObject {
 
 Also, we want to be able to move rows and columns around. We already described how to do this using a [list-with-move](#list-with-move):
 ```ts
-class ListWithMove<T> extends CrdtObject {
+class ListWithMove<T> {
   state: UniqueSet<[value: T, positionReg: LwwRegister<ListCrdtPosition>];
 }
 
@@ -350,7 +360,7 @@ Next, we can also perform operations on every cell in a row, like changing the f
 
 <!--Lastly, let's take another look at cell contents. Before I said it was just a string, but it's more interesting than that: cells can reference other cells in formulas, e.g., "= A2 + B3". If a column is inserted in front of column A, these references should update to "= B2 + C3", since they intuitively describe a *cell*, not the indicators themselves. So, we should store them using a pair `[row: Row, column: Column]`, like the map keys. The content then becomes an array of tokens, which can be literal strings or cell references:
 ```ts
-class Cell extends CrdtObject {
+class Cell {
   content: LwwRegister<(string | [row: Row, column: Column])[]>;
   fontSize: LwwRegister<number>;
   wordWrap: EnableWinsFlag;
@@ -363,26 +373,26 @@ class Cell extends CrdtObject {
 In summary, the state of our spreadsheet is as follows.
 ```ts
 // ---- CRDT Objects ----
-class Row extends CrdtObject {
+class Row {
   height: LwwRegister<number>;
   isVisible: EnableWinsFlag;
   // ...
 }
 
-class Column extends CrdtObject {
+class Column {
   width: LwwRegister<number>;
   isVisible: EnableWinsFlag;
   // ...
 }
 
-class Cell extends CrdtObject {
+class Cell {
   content: LwwRegister<string>;
   fontSize: LwwRegister<number>;
   wordWrap: EnableWinsFlag;
   // ...
 }
 
-class ListWithMove<T> extends CrdtObject {
+class ListWithMove<T> {
   state: UniqueSet<[value: T, positionReg: LwwRegister<ListCrdtPosition>];
 }
 
