@@ -93,7 +93,7 @@
                                         {% if page.summary -%}
                                         {{ page.summary | safe }}
                                         {% else %}
-                                        {{ page.content | striptags | truncate(length=280) | safe }}
+                                        {{ page.content | replace(from="<h1 ", to="<!-- ") | replace(from="</h1>", to="-->") | replace(from="<h2 ", to="<!-- ") | replace(from="</h2>", to="-->") | replace(from="<h3 ", to="<!-- ") | replace(from="</h3>", to="-->") | striptags | truncate(length=280) | safe }}
                                         {%- endif %}
                                     </div>
                                     <div class="read-more">
