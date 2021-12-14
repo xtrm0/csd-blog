@@ -16,4 +16,11 @@
             {% endif %}
         </div>
     </header>
+    {% for area in page.taxonomies.areas %}
+      {% if area not in ["Artificial Intelligence", "Graphics", "Programming Languages", "Security", "Systems", "Theory"] %}
+         <h1>WARNING: Invalid area "{{ area }}" found; please read instructions again thoroughly. Areas must only be from the list ["Artificial Intelligence", "Graphics", "Programming Languages", "Security", "Systems", "Theory"]</h1>
+      {% endif %}
+    {% else %}
+         <h1>WARNING: No areas specified; please read instructions again thoroughly. At least one area from the following list must be specified: ["Artificial Intelligence", "Graphics", "Programming Languages", "Security", "Systems", "Theory"]</h1>
+    {% endfor %}
 {% endmacro title %}
