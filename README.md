@@ -27,8 +27,9 @@ hosted at https://www.cs.cmu.edu/~csd-phd-blog/
    "Underwater Basketweaving: A New Approach to Fast Weaving", an
    ideal filename would be `underwater-basketweaving.md`. This file is
    written in Markdown, and the template shows common uses for most
-   supported Markdown. If you require images (or other static content)
-   for your blogpost, please make the folder
+   supported Markdown. Make sure to read all the instructions given in
+   the `template.md` file too. If you require images (or other static
+   content) for your blogpost, please make the folder
    `website/static/YEAR/BLOGPOSTNAME` and place the image files in
    it. This will allow you to introduce images in your Markdown file
    directly using `![alttext for foo](./foo.png)`, `![alt text for
