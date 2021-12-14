@@ -150,13 +150,16 @@ place hyphens between them, like [this](#more-fun) or
 [this](#another-section).
 
 Pictures, of course, can be added. The best way to do this is to
-utilize relative links (just add images into the right directory), but
-you can link to external images too in the same way. For example,
+utilize relative links (just add images into the right directory, see
+the main `README` file in this repository to learn where it should
+go), but you can link to external images too in the same way. For
+example,
 
 ![i are serious cat](https://upload.wikimedia.org/wikipedia/commons/4/44/CatLolCatExample.jpg)
 
 Of course, it is good etiquette to add alt-text to your images, like
-has been done in the previous image. It helps with accessibility.
+has been done in the previous image, with "i are serious cat". It
+helps with accessibility.
 
 Images are automatically shown at a reasonable size by limiting their
 maximum width. If you have a particularly tall image, you might have
