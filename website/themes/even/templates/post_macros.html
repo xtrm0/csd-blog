@@ -23,4 +23,7 @@
     {% else %}
          <h1>WARNING: No areas specified; please read instructions again thoroughly. At least one area from the following list must be specified: ["Artificial Intelligence", "Graphics", "Programming Languages", "Security", "Systems", "Theory"]</h1>
     {% endfor %}
+    {% if page.content is containing('alt=""') %}
+      <h1>WARNING: Found empty alt text in image, please read the instructions thoroughly. All images must have been given alt-text.</h1>
+    {% endif %}
 {% endmacro title %}

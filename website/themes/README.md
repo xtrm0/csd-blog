@@ -27,3 +27,6 @@ on 2021-08-13, and then modified. Modifications are listed below.
 
 9. Added automated checks to ensure that areas are part of the
    expected set of areas.
+
+10. Added automated checks to ensure that all images in the blogpost
+    are given alt-text.
