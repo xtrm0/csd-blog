@@ -35,12 +35,19 @@ These objects are permanently stored in large-scale databases, object stores, or
 On top of this permanent storage layer,
 popular objects are cached.
 Caches allow quicker access to the popular objects and lower load on the storage layer.
-To be effective, caching layers need to scale with the quantity of data,
-but scaling traditional DRAM caches is prohibitively expensive.
-Instead, companies are increasingly using flash to build larger caches since flash is 100x cheaper per bit than DRAM.
+A cache's effectiveness in these systems is primarily measured by the ratio of
+the number of requests it can fulfill to the total number of requests, or its miss ratio.
+As the quantity of data scales, caching layers need to also scale to maintain
+their miss ratio, otherwise end-user experiences such as website load times suffer.
+However, scaling traditional DRAM caches is prohibitively expensive.
+Instead, companies are increasingly using flash
+to build larger caches since flash is 100x cheaper per bit than DRAM.
 
-Unfortunately, prior flash caches fall short of efficiently caching tiny objects.
-Prior approaches either require too much DRAM, losing the cost benefits of flash, or require too many writes, wearing out the flash device long before its expected lifetime.
+Unfortunately, prior flash caches fall short of efficiently caching tiny objects,
+a challenging workload for flash caching.
+Prior approaches either increase the cache's cost by having a high indexing overhead
+that requires excessive DRAM capacity to support
+or writing too much and rapidly wearing out flash devices.
 Thus, with prior designs, flash caching fails to live up to its potential as a cheap, large cache for tiny objects.
 
 Kangaroo is a new flash cache optimized for tiny objects.
@@ -77,14 +84,18 @@ Since objects can end up anywhere on flash, the cache maintains an in-memory ind
 The advantage of a log-structured design is that it has a low *write amplification*.
 Write amplification is the number of bytes written to flash divided by
 the cumulative object size, and it represents the write overhead of a cache.
+A write amplification of one is optimal, though often it is higher.
+For example, writing a 100-byte object to flash by itself has a write amplification
+of ~40x since flash has a minimum write granularity of 4KB.
 Since a log-structured cache buffers objects in DRAM,
 it can wait until it has enough objects to write them to flash efficiently.
 Thus, log-structured caches have close-to-optimal write amplification.
 
 However, log-structured caches have a large DRAM overhead when caching tiny objects.
-They have to keep an index entry for every on-flash object.
+They have to keep an index entry for every on-flash object to enable
+finding those objects again on a lookup request.
 Since objects are around 100 bytes, there would be roughly 20 billion of them
-in a 2 TB cache.
+in a 2 TB flash cache.
 Even with the [lowest overhead in the literature at 30 bits/object](https://www.usenix.org/conference/nsdi19/presentation/eisenman),
 the cache would require 75 GB just to the index objects on flash.
 Since caching on flash is meant to lower costs through removing DRAM,
@@ -137,8 +148,11 @@ If the object is not found in any of these locations, Kangaroo returns a miss.
 On an insert, Kangaroo first places the object in (1) the DRAM cache.
 This insertion may evict an object from the DRAM cache.
 If the object is not admitted to flash, (2a) it is evicted from Kangaroo.
+For instance, objects can be evicted at this stage based on a random admission policy,
+where each object has a fixed probability of admission to the flash cache.
 Otherwise, it is inserted into (2b) KLog's index and (2c) written to flash in KLog via a buffered write.
-When objects are evicted from KLog, they are again subject to an admission policy
+When objects are evicted from KLog, they are again subject to an admission policy,
+described more in the next section,
 and (3a) can be evicted from Kangaroo entirely.
 Admitted objects are written to (3b) KSet along with any other objects in KLog
 that map to the same set in KSet.
@@ -156,7 +170,8 @@ Since writing a set always requires writing 4 KB, regardless of the number of ob
 
 Thus, Kangaroo amortizes writes to KSet over multiple objects, decreasing the overall number of bytes written to flash.
 Kangaroo accomplishes this amortization with a small KLog (~5% of flash), resulting in only a small DRAM overhead to index KLog’s entire capacity.
-Kangaroo thus addresses both the DRAM and flash-write overheads of caching tiny objects on flash.
+Kangaroo thus addresses both the DRAM and flash-write overheads of caching tiny objects on flash,
+allowing it to have .
 
 ### Kangaroo optimizations
 
@@ -193,7 +208,8 @@ index.
 ![Kangaroo vs LS vs SA on production FB trace](../kangaroo-results.png)
 <figure-caption>
 
-Kangaroo reduces misses compared to LS by 56% and to SA by 29%.
+Kangaroo reduces misses compared to LS by 56% and to SA by 29% over the last
+2 days of the production FB trace.
 LS's high DRAM overhead means that it cannot index the entire flash drive.
 Thus, it has a lower effective capacity, which increases its miss ratio.
 SA's high write amplification means that it has to rate limit its insertions
