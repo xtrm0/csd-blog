@@ -23,11 +23,11 @@ author = {name = "Sara McAllister", url = "https://saramcallister.github.io/" }
 committee = [
 #    {name = "Dimitrios Skarlatos", url = "https://www.cs.cmu.edu/~dskarlat/"},
 #    {name = "Justine Sherry", url = "https://www.justinesherry.com/"},
-#    {name = "Sol Boucher", url = "https://www.cs.cmu.edu/~sboucher/"},
+#    {name = "Jack Kosaian", url = "https://jackkosaian.github.io/"},
 ]
 +++
 
-Many social-media and IoT services have large numbers of tiny objects, each a few hundred bytes of less.
+Many social-media and Internet-of-Things services have large numbers of tiny objects, each a few hundred bytes of less.
 For example, edges in Facebook’s social graph, which are needed to connect friends, posts, and images among other content, [average under 100 bytes](https://www.usenix.org/conference/osdi20/presentation/berg).
 Twitter tweets [average 33 bytes](https://techcrunch.com/2018/10/30/twitters-doubling-of-character-count-from-140-to-280-had-little-impact-on-length-of-tweets/).
 
@@ -36,7 +36,7 @@ On top of this permanent storage layer,
 popular objects are cached.
 Caches allow quicker access to the popular objects and lower load on the storage layer.
 To be effective, caching layers need to scale with the quantity of data,
-but scaling tradition DRAM caches is prohibitively expensive.
+but scaling traditional DRAM caches is prohibitively expensive.
 Instead, companies are increasingly using flash to build larger caches since flash is 100x cheaper per bit than DRAM.
 
 Unfortunately, prior flash caches fall short of efficiently caching tiny objects.
@@ -49,12 +49,12 @@ DRAM overhead and a small write overhead for cached objects.
 In addition, Kangaroo introduces a new cache eviction policy that uses
 minimal DRAM overhead while significantly reducing cache
 misses, further reducing load on the storage layer.
-Kangaroo is [open-source](https://github.com/saramcallister/Kangaroo)
+Kangaroo is [open source](https://github.com/saramcallister/Kangaroo)
 and implemented in [CacheLib](https://cachelib.org/),
 Facebook’s open-source caching engine.
 
-Kangaroo lowers the number of misses by 29% over the state of the art under
-production DRAM and flash constraints on traces
+Kangaroo lowers the number of cache misses by 29% over state-of-the-art
+flash caching systems under production DRAM and flash constraints on traces
 from production social-graph caching workloads at Facebook and Twitter.
 These results are also corroborated with a
 test deployment of Kangaroo in a shadow production setup at Facebook.
@@ -70,13 +70,13 @@ DRAM overheads whereas set-associative caches require prohibitively large write 
 ### Log-structured caches: Too much DRAM
 
 Log-structured caches use flash as a circular log.
-During an insert, objects are first buffered in memory and then written to flash
+During an insert, objects are first buffered in DRAM and then written to flash
 sequentially in large groups.
 Since objects can end up anywhere on flash, the cache maintains an in-memory index to find objects.
 
 The advantage of a log-structured design is that it has a low *write amplification*.
 Write amplification is the number of bytes written to flash divided by
-the cumulative object size and it represents the write overhead of a cache.
+the cumulative object size, and it represents the write overhead of a cache.
 Since a log-structured cache buffers objects in DRAM,
 it can wait until it has enough objects to write them to flash efficiently.
 Thus, log-structured caches have close-to-optimal write amplification.
@@ -85,21 +85,21 @@ However, log-structured caches have a large DRAM overhead when caching tiny obje
 They have to keep an index entry for every on-flash object.
 Since objects are around 100 bytes, there would be roughly 20 billion of them
 in a 2 TB cache.
-At just 30 bits/object of overhead, [the lowest overhead in the literature](https://www.usenix.org/conference/nsdi19/presentation/eisenman),
-a cache would require 75 GB just to the index objects on flash.
+Even with the [lowest overhead in the literature at 30 bits/object](https://www.usenix.org/conference/nsdi19/presentation/eisenman),
+the cache would require 75 GB just to the index objects on flash.
 Since caching on flash is meant to lower costs through removing DRAM,
 log-structured caches are inefficient for tiny objects because they require too much DRAM.
 
 ### Set-associative caches: Too many writes
 
 Meanwhile, set-associative caches use flash as a large hash table where each flash page is a single *set*, or hash bucket.
-During a lookup request, the cache hashes to object's key to find it's potential set on
+During a lookup request, the cache hashes an object's key to find it's potential set on
 flash and reads that flash page to find the object.
 
 Since the finding objects is based on a hash function, set-associative caches
 do not need large amounts of memory to track objects.
-Thus, unlike log-structured caches, have a low memory overhead,
-DRAM overhead does not limit set-associative caches.
+Thus, unlike log-structured caches, set-associative caches have a low
+enough memory overhead to support large flash caches.
 
 However, these caches write many more bytes than necessary.
 When inserting a new object, the cache has to write, at a minimum,
@@ -145,17 +145,20 @@ that map to the same set in KSet.
 
 </figure-caption>
 
-One important aspect of the insertion path in Kangaroo too reduce writes is how Kangaroo moves objects from KLog to KSet.
-KLog often contains multiple objects mapping to the same set in KSet, such as the pink and yellow object in the figure above.
+One important aspect of the insertion path in Kangaroo that reduces write amplification
+is how Kangaroo moves objects from KLog to KSet.
+KLog often contains multiple objects mapping to the same set in KSet,
+such as the pink and yellow objects in the figure above.
 Whenever an object is evicted from KLog, Kangaroo proactively uses KLog's index to
-find any other objects that map to the same set in KSet.
+find any other objects that map to the same set in KSet,
+and moves them to KLog as well.
 Since writing a set always requires writing 4 KB, regardless of the number of objects inserted, writing multiple new objects instead of just 1 greatly reduces the the write amplification.
 
 Thus, Kangaroo amortizes writes to KSet over multiple objects, decreasing the overall number of bytes written to flash.
 Kangaroo accomplishes this amortization with a small KLog (~5% of flash), resulting in only a small DRAM overhead to index KLog’s entire capacity.
 Kangaroo thus addresses both the DRAM and flash-write overheads of caching tiny objects on flash.
 
-### Kangaroo Optimizations
+### Kangaroo optimizations
 
 On top of this basic design, Kangaroo introduces additional techniques to increase its effectiveness.
 In particular, since Kangaroo is a cache and not a key-value store, it can evict objects to minimize writes.
@@ -165,11 +168,11 @@ This admission policy allows Kangaroo to guarantee that the write amplification 
 Kangaroo also introduces RRIParoo, a low DRAM-overhead eviction policy for KSet
 based on the processor eviction policy [RRIP](https://people.csail.mit.edu/emer/papers/2010.06.isca.rrip.pdf).
 At a high level, RRIParoo keeps one bit in DRAM per object in KSet
-to represent whether an object has been requested since the object's set was last
-written.
-When a set is rewritten, this bit is used to update the 3-bit recency value kept on flash per object.
-Objects in a set are then ordered by their 3-bit recency value and
-Kangaroo evicts the least valuable
+to represent whether an object has been requested since the object was last
+written to flash.
+When a set is rewritten, this bit is used to update a 3-bit recency values kept on flash per object.
+Objects in a set are then ordered by their 3-bit recency value
+and Kangaroo evicts the least valuable
 objects to make room for objects coming from KLog.
 Thus, RRIParoo allows an advanced eviction policy in KSet
 while keeping a low DRAM overhead.
@@ -203,8 +206,8 @@ allowing it to outperform other flash caches.
 </figure-caption>
 
 We corroborated these results in a production shadow deployment at Facebook.
-In addition, Kangaroo maintains its advantage under if operated under different constraints
-such as different write rate limits, more or less available DRAM, different tiny object workload, and larger device capacities.
+In addition, Kangaroo maintains its advantage if operated under different constraints,
+such as different write rate limits, more or less available DRAM, different tiny object workload, and larger device capacities. More details on these results can be found in our [paper](https://dl.acm.org/doi/10.1145/3477132.3483568).
 
 ## Conclusion
 
