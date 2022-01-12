@@ -87,6 +87,9 @@ the cumulative object size, and it represents the write overhead of a cache.
 A write amplification of one is optimal, though often it is higher.
 For example, writing a 100-byte object to flash by itself has a write amplification
 of ~40x since flash has a minimum write granularity of 4KB.
+Flash has a limited number of times it can be rewritten before becoming unusable.
+Therefore, this significant write amplification wears out the flash device quickly,
+requiring the device to be replaced quickly.
 Since a log-structured cache buffers objects in DRAM,
 it can wait until it has enough objects to write them to flash efficiently.
 Thus, log-structured caches have close-to-optimal write amplification.
@@ -116,9 +119,6 @@ However, these caches write many more bytes than necessary.
 When inserting a new object, the cache has to write, at a minimum,
 a 4 KB flash page for every object.
 If objects are roughly 100 bytes, the cache has a *40x* write amplification.
-Flash has a limited number of times it can be rewritten before becoming unusable.
-Therefore, this significant write amplification wears out the flash device quickly,
-requiring the device to be replaced quickly
 Thus, set-associative caches are also inefficient for tiny objects because they
 require too many writes.
 
@@ -170,8 +170,7 @@ Since writing a set always requires writing 4 KB, regardless of the number of ob
 
 Thus, Kangaroo amortizes writes to KSet over multiple objects, decreasing the overall number of bytes written to flash.
 Kangaroo accomplishes this amortization with a small KLog (~5% of flash), resulting in only a small DRAM overhead to index KLog’s entire capacity.
-Kangaroo thus addresses both the DRAM and flash-write overheads of caching tiny objects on flash,
-allowing it to have .
+Kangaroo thus addresses both the DRAM and flash-write overheads of caching tiny objects on flash.
 
 ### Kangaroo optimizations
 
