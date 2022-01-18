@@ -21,9 +21,9 @@ author = {name = "Ananya Joshi", url = "https://csd.cmu.edu/people/graduate-stud
 # The committee specification is simply a list of strings.
 # However, you can also make an object with fields like in the author.
 committee = [
-    "Committee Member 1's Full Name",
-    "Committee Member 2's Full Name",
-    {name = "Harry Q. Bovik", url = "http://www.cs.cmu.edu/~bovik/"},
+    "Ryan Tibshirani",
+    "Zico Kolter",
+    "Pallavi Koppol"
 ]
 +++
 
@@ -118,6 +118,10 @@ Cases2Beds was a case study about the realities of research institutions offerin
 
 Research institutions can be effective partners to health organizations, but the next set of challenges of this pandemic–or the next–will require quick action. It is recommended that health organizations establish long-term partnerships so these challenges can be addressed promptly.
 
+
+Thank you to the Allegheny County Health Department (especially Antony Gnalian, Dr. LuAnn Brink, and Dr. Debra Bogen) for their invaluable feedback, efforts, and shared interest in actionable intelligence.
+
+Many members of the Delphi Group, including Sumit Agrawal, Katie Mazaitis, and Phil McGuinness, met regularly with the Allegheny County Health Department, provided data, edited this blog post, and investigated various solutions other than Cases2Beds. 
 
 ## Resources
 
