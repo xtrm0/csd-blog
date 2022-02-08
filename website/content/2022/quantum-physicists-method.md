@@ -6,11 +6,11 @@ date = 2022-01-31
 
 [taxonomies]
 # Keep any areas that apply, removing ones that don't. Do not add new areas!
-areas = ["Programming Languages", "Theory"]
+areas = ["Programming Languages"]
 # Tags can be set to a collection of a few keywords specific to your blogpost.
 # Consider these similar to keywords specified for a research paper.
 tags = ["quantum-physicists-method", "physicists-method", "resource-analysis", 
-"amortized", "AARA", "types", "type-system", "linear", "affine", "intersection"]
+"amortized", "AARA", "resource-tunneling", "worldviews", "program-analysis"]
 
 [extra]
 # For the author field, you can decide to not have a url.
