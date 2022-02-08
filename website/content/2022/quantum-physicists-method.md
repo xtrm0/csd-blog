@@ -40,7 +40,7 @@ no quantum computing in here, despite the name.)
 
 # The Classical Physicist's Method
 
-In order to make sense of the physicist's method (and the later refinements we'll make to it), it is probably
+To make sense of the physicist's method (and the later refinements we'll make to it), it is
 good to start by recalling the physical reasoning behind it. Think back to your highschool physics class
 where you learned about energy. If you drop a 1 kilogram ball from
 1 meter above the Earth, and drop an identical ball from the top of a 1 meter high ramp, how do their speeds compare
@@ -148,7 +148,7 @@ the \\(\Phi\\) we chose in our above example was "nice". Specifically, this "nic
 *local* - one can think of the state \\(S\\) as broken up into many pieces (our array cells), each with their own local amount of potential (our "batteries"), and then \\(\Phi\\) just gives the sum of potential stored on these different pieces.
 In fact, this appears to be exactly how Tarjan intended the bookkeeping for the physicist's method to be conceptualized:
 
->In order to keep track of saved or borrowed credits [potential], it is generally convenient to
+>To keep track of saved or borrowed credits [potential], it is generally convenient to
 store them in the data structure. ... It is important to
 realize that this is only an accounting device; the programs that actually manipulate
 the data structure contain no mention of credits or debits [energy].
@@ -159,7 +159,7 @@ This local-view of potential has been time-tested, and is basically the only for
 you will find in the literature.
 Given this efficacy, you might wonder if it can be equally effective when placed in the setting
 of program analysis. And the answer - as will be made clear in this post
-of this post - is *no*. As it turns out, the reasoning we perform at the algorithm
+of this post - is surprisingly *not always*. As it turns out, the reasoning we perform at the algorithm
 level sometimes obscures a *non-local* definition of \\(\Phi\\). This will be explained
 in the next section.
 
@@ -216,7 +216,7 @@ pool only needs to be able to pay out over the sequences of operations that our 
 
 <p></p>
 
-With this framework, our program analysis really just needs to find a suitable \\(\Phi\\) and \\(p_0\\).
+With this framework, our program analysis basically just needs to find a suitable \\(\Phi\\) and \\(p_0\\).
 We already know that \\(\Phi\\) covers the potential on data structures, so \\(p_0\\) should deal with
 potential independent of data structures, i.e., \\(p_0\\) should be some constant.
 The interesting piece is therefore \\(\Phi\\), so lets focus there.
@@ -262,12 +262,20 @@ At this point, you might think the bound looseness is just some weakness on *our
 presumably *some* localization of the tightest potential exists, but we just can't figure it out.
 However, the situation is actually worse:
 We can create an example where *no* tight localization suffices, even while nonlocal reasoning
-makes a tight solution obvious[^Bell]. This happens especially when measuring the cost of a resource like memory,
-since memory is returned after use and can be reused[^neg].
+makes a tight solution obvious[^Bell].
 
-To see how this problem arises, imagine we have a list of data, and two different data processing procedures
-`f` and `g`. To compare the results of these procedures, we might write the code below.
-How should we account for the memory cost of the comparison, if both `f` and `g` temporarily
+This problem happens especially when measuring the cost of a resource like memory,
+since memory is returned after use[^neg] and can be reused. When a resource returned, it is as
+if additional payment is provided midway through the computation. This *could* lessen the amount
+of resources needed upfront, but only if those resources aren't needed prior to when the extra
+resources are returned. In effect, the cost of resources like memory is measured with
+their *peak* cost, the high water mark of the number of resources in use at one time.
+These resources are therefore a bit more complicated than resources that only tick down, like
+time. This makes it easy to create a situation with no tight localization of potential, like that below.
+
+To see this problem in action, imagine we have a list of data, and two different data processing procedures
+`process1` and `process2`. To compare the results of these procedures, we might write the code below.
+How should we account for the *memory* cost of the comparison, if both `process1` and `process2` temporarily
 use one unit of memory per element in the list, and we assume that copying is free?
 
 ```python
@@ -279,10 +287,10 @@ def copy(list):
 
 def processBoth(data):
     dataCopy = copy(data)
-    return (f(data), g(dataCopy))
+    return (process1(data), process2(dataCopy))
 ```
 
-It seems obvious from the outset that whatever memory \\(f\\) uses can be reused for \\(g\\),
+It seems obvious from the outset that whatever memory `process1` uses can be reused for `process2`,
 since both act on lists of equal length. So, we should only need to allocate \\(|\verb"data"|\\)
 memory units. However, if that is all we have, accounting for it locally is impossible.
 
@@ -290,11 +298,11 @@ To follow the accounting, let's step through a call to `processBoth`. We start w
 data structure being our input `data`, so it must contain all the potential.
 We proceed to copy [^copy] `data` to ready it for each of the processing functions.
 This copying procedure accesses all the cells of `data`, so some amount of potential could
-have been moved into `dataCopy`. Then \\(f\\) is applied to `data`, requiring all of
-the \\(|\verb"data"|\\) memory units. Now, because \\(f\\) doesn't touch
-`dataCopy`, \\(f\\) cannot use any of the potential in `dataCopy` -- this means `data`
+have been moved into `dataCopy`. Then `process1` is applied to `data`, requiring all of
+the \\(|\verb"data"|\\) memory units. Now, because `process1` doesn't touch
+`dataCopy`, `process1` cannot use any of the potential in `dataCopy` -- this means `data`
 needs to have kept all its potential earlier, moving none into `dataCopy`. However,
-this is followed by applying \\(g\\) to `dataCopy`, which results in mirrored accounting for
+this is followed by applying `process2` to `dataCopy`, which results in mirrored accounting for
 potential: all potential should have been moved `dataCopy`, with none left in `data`! Thus, no
 local allocation of \\(|\verb"data"|\\) potential suffices. Just like before, the local
 approach can only manage to overapproximate this exampe by a factor of 2, and can
@@ -308,7 +316,7 @@ the *quantum* physicist's method. Given that we've zoomed down to the micro-leve
 non-local phenomena, this analogy is already quite appropriate.
 
 The trick to making the quantum physicist's method work is to introduce "worldviews",
-which are somewhat analagous to states in superposition.
+which are somewhat analagous to states in [quantum superposition](https://en.wikipedia.org/wiki/Quantum_superposition).
 Each worldview has its own separate, local allocation of potential, and we work with as many
 worldviews at a time as we choose. The big twist with these worldviews is that we allow them
 to allocate *negative* potential[^negative] wherever they want, so long as at least one worldview is totally non-negative --
@@ -367,7 +375,7 @@ and one where `list2` does. No matter which list pays, there will then be a vali
 
 * To solve the second -- the data processing problem -- start with 2 worldviews assigning `data` all the potential. Then upon copying,
 let the worldviews diverge -- one leaves all the potential on `data`, and one moves it all
-to `dataCopy`. The former can be the witness while applying `f`, and the latter when applying `g`.
+to `dataCopy`. The former can be the witness while applying `process1`, and the latter when applying `process2`.
 
 In either case the max amount of potential across the worldviews is exactly the tight amount of potential
 we wanted assigned.
@@ -377,15 +385,23 @@ of operations. This gives us the results we expect for macro-operations, so we c
 classical physicist's method reasoning to stitch together any macro-operations.
 That gives us our full picture of program analysis.
 
-# Conclusion
+# Wrap Up
 
 Now you've seen how the quantum physicist's method fills in the gaps at the micro-level left by the
 classical physicist's method. Worldviews salvage the niceness of locality by wrapping a bunch of local accountings
 together and letting them make each other more flexible. Then we can slot the results of analyzing each
 macro-operation directly into our classical physicist's method framework. This
 leaves us with a program analysis built off the physicist's method that can give many tighter
-bounds than its predecessors. Finally, for those interested in seeing such an analysis in action,
-I'll leave you with a link to my work extending AARA [here](https://dl.acm.org/doi/abs/10.1145/3473581).
+bounds than its predecessors.
+
+If you are interested in seeing such an analysis in action,
+I'll point you again to my work extending AARA [here](https://dl.acm.org/doi/abs/10.1145/3473581).
+My paper adds the quantum physicist's method along with some special infrastructure called *remainder contexts*, and then
+uses its new capabilities to be able to automatically reason about memory usage and tree depth. The work also
+comes with an implementation, a description of how it was designed, and tables of experiments run with it on
+the OCaml standard library `Set` module. The implementation never gave worse cost bounds than the local approach, and often
+gave much better ones. You can check it out and see for yourself - the quantum physicist's method is a real improvement in program
+cost analysis!
 
 [^grav]: Specifically, they both have \\(1\mathsf{kg} * 9.81\frac{\mathsf{m}}{\mathsf{s}^2} * 1 \mathsf{m} = 9.81 \mathsf{J}\\) of energy.
 
@@ -410,7 +426,7 @@ non-loss of energy. Adapting the amortized analysis framework to non-loss would 
 
 [^neg]: This return of energy is modeled in our framework simply by letting \\(C\\) return negative costs.
 
-[^copy]: Copying is only really needed in this code if `f` or `g` might mutate the underlying list. However,
+[^copy]: Copying is only really needed in this code if `process1` or `process2` might mutate the underlying list. However,
 the pertinent features of code pattern also come up in side-effect free settings during, e.g., tree traversal.
 See [here](https://dl.acm.org/doi/abs/10.1145/3473581).
 
@@ -425,4 +441,4 @@ to solve our analyses' problems. Thus, since potential is entirely a construct o
 we won't see any "transfer" functions written in the code to move potential.
 
 [^qt]: We call this particular way of accounting for how to get around the barrier of the vending machine
-"resource tunneling", because it is analgous to quantum tunneling around a potential barrier.
+"resource tunneling", because it is analgous to [quantum tunneling](https://en.wikipedia.org/wiki/Quantum_tunnelling) around a potential barrier.
