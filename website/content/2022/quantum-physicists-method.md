@@ -83,10 +83,10 @@ inefficient than it usually is.
 
 If instead we think through a lens of amortization, we find that insertion is, morally-speaking, a constant cost operation.
 Essentially, insertion is cheap enough often enough that prepaying a little extra at each common case
-can offset the high cost of the uncommon case. We can see how that looks in the graph below, where the spikes of cost
+can offset the high cost of the uncommon case. We can see how that looks in the graph below[^graph], where the spikes of cost
 don't exceed the constant-per-step payment.
 
-![a graph showing a constant-per-step bound over spiky costs](https://i.stack.imgur.com/CPP0P.jpg)
+![a graph showing a constant-per-step bound over spiky costs](./amortizedgraph.jpeg)
 
 To show this formally, we define a suitable *potential* function \\(\Phi\\) giving the amount of prepaid potential energy stored in the
 program state. Specifically, our desired \\(\Phi(A)\\) will give assign 2 potential per element past
@@ -413,8 +413,11 @@ cost analysis!
 [^personal]: I personally found this analogy with physical reasoning very useful to my
 understanding when I was learning about algorithm analysis in undergrad. I'm sure many students feel the same.
 
-[^list]: This list would be the data structure called [`ArrayList` in Java](https://docs.oracle.com/javase/8/docs/api/java/util/ArrayList.html)
-and [`vector` in C++](https://www.cplusplus.com/reference/vector/vector/), and probably underlies a lot of other list implementations too.
+[^list]: This list would be the data structure called a [dynamic array](https://en.wikipedia.org/wiki/Dynamic_array).
+It is the [`ArrayList` in Java](https://docs.oracle.com/javase/8/docs/api/java/util/ArrayList.html)
+and the [`vector` in C++](https://www.cplusplus.com/reference/vector/vector/), and probably underlies a lot of other list implementations too.
+
+[^graph]: Taken from [here](https://stackoverflow.com/questions/200384/constant-amortized-time).
 
 [^technically]: Technically speaking, it only corresponds to the non-creation of energy, since we are interested
 in an upper-bound on cost. Energy conservation means both non-creation and
