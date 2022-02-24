@@ -36,7 +36,7 @@ One of the [Delphi Group](https://delphi.cmu.edu/)’s goals is to create inform
 
 <div id="f1"></div>
 
-![Image of the hospitalizations due to COVID-19 and new cases from positive PCR tests in Allegheny County](./WPRDC-1.svg)
+![Image of the hospitalizations due to COVID-19 and new cases from positive PCR tests in Allegheny County. There are rapid upward trends in hospitalizations and positive cases from October 2020 to mid-December 2020.  The maximum number of hospitalizations is about 600 and the minimum is less than 50 [in Oct 2020]. The maximum number of positive cases is over 7000 and the minimum is less than 1000 [in Oct 2020].](./WPRDC-1.svg)
 **Fig. 1:** Hospitalizations Due to COVID-19 and New Cases from Positive PCR Tests in Allegheny County (WPRDC Data <sup>[1](#WPRDCLink)</sup>)
 
 
@@ -60,7 +60,7 @@ These values vary by demographic factors, most notably age (<a href="#f2">Fig. 2
 <div id="f2"></div>
 
 
-![Age Group Comparisons based on the Allegheny County COVID-19 Tableau](./rates-1.svg)
+![Age Group Comparisons based on the Allegheny County COVID-19 Tableau. The age groups are 0-9, 10-19, 20-29, 30-39, 40-49, 50-59, 60-69, 70+, and unspecified. As the age group increases, the percent of those who were tested  in that age group  and were later hospitalized in that age group increases (the 70+ age group being > 5%).](./rates-1.svg)
 **Fig. 2:** Age Group Comparisons based on the Allegheny County COVID-19 Tableau <sup>[3](#ACHDDashboardLink)</sup>
 
 
@@ -104,7 +104,7 @@ Behind the scenes, we take these parameters (first input tab) and generate Offse
 
 <div id="f3"></div>
 
-![Output of Cases2Beds using historical data until January 21st for Allegheny County Using Public Parameters](./C2B-1.svg)
+![Output of Cases2Beds using historical data until January 21st for Allegheny County Using Public Parameters. In the output of Cases2Beds, we see a peak in mid-December 2020 in the mean number of beds, followed by a stagnation period in mid-January 2021, before a rapid decline until the end of March 2021.  The 25-75 Quantile and 5-95 Quantile are highlighted on the graph, with the band having the largest width between mid-December 2020 and mid-January 2021. ](./C2B-1.svg)
 **Fig. 3:**  Output of Cases2Beds using historical data until January 21st for Allegheny County Using Public Parameters
 
 If we assume independence between patients, the mean and variance calculations are exact. However, our quantile estimates are based on approximating the sum of independent binary variables, which is inaccurate near the tails. So the accuracy of the more extreme quantiles (95%+) depends on the number of cases present, which in practice makes them less trustworthy.
@@ -120,7 +120,7 @@ At the peak of bed utilization, hospital systems themselves increased their COVI
 <div id="f4"></div>
 
 
-![Numbers of staffed COVID beds over time vs. capacity from the HHS Protect Data](./HHS-1.svg)
+![Numbers of staffed COVID beds over time vs. capacity from the HHS Protect Data. There was peak hospital utilization (7-day Average of COVID Adult Beds Used) in mid-December 2020, with over 800 beds avg. before a steady decline until February 2021, with around 200 beds avg. ](./HHS-1.svg)
 **Fig. 4:** Numbers of staffed COVID beds over time vs. capacity from the HHS Protect Data <sup>[5](#HHSLink)</sup>.
 
 
