@@ -31,12 +31,18 @@ committee = [
 The physicist's method is a powerful framework for cost analysis that
 many a computer scientist will learn at some point in their undergraduate career.
 However, its high-level description leaves some practical gaps, especially around
-how to actually bookkeep the finer details of general program
-analysis. This post explains how to fill in these gaps to
+how to actually bookkeep the finer details, and these details become important
+when trying to build up the method from low-level program operations.
+This post explains how to fill in these gaps to
 get the *quantum* physicist's method, a refinement of the physicist's method
 that is robust enough for automatic program analysis, as in
 my paper [here](https://dl.acm.org/doi/abs/10.1145/3473581). (Quick disclaimer: There is
-no quantum computing in here, despite the name.)
+no quantum computing in here, despite the name.) To do show this
+result, this post will first explain the classical physicist's method
+for algorithm analysis,
+then describe the difficulties it encounters in more fine-grained
+program analysis, and finally lay out the quantum physicist's method
+itself.
 
 # The Classical Physicist's Method
 
@@ -89,11 +95,12 @@ don't exceed the constant-per-step payment.
 ![a graph showing a constant-per-step bound over spiky costs](./amortizedgraph.jpeg)
 
 To show this formally, we define a suitable *potential* function \\(\Phi\\) giving the amount of prepaid potential energy stored in the
-program state. Specifically, our desired \\(\Phi(A)\\) will give assign 2 potential per element past
+program state. Specifically, our desired \\(\Phi(A)\\) will be equal to twice the number of
+filled slots past
 the halfway point in the array \\(A\\).
 We will think of this like attaching a 2-charge battery to each individual array cell past the halfway point, so that
 we deal with that battery's energy if and only if we access that array cell.
-The amortized cost of an operation \\(o\\) is then defined as \\(\Phi(A) - \Phi(o(A)) + C(A,o)\\), which is the difference in potential induced by \\(o\\) plus \\(C(A,o)\\) its true cost on the array \\(A\\).
+The amortized cost of an operation \\(o\\) is then defined as \\(\Phi(o(A)) - \Phi(A) + C(A,o)\\), which is the difference in potential induced by \\(o\\) plus \\(C(A,o)\\) its true cost on the array \\(A\\).
 If we account for this potential energy alongside our normal costs, suddenly the cost profile becomes much smoother:
 
 * In the common case, insertion just writes into the next unused slot of \\(A\\). We still pay the true cost of 
@@ -158,10 +165,9 @@ the data structure contain no mention of credits or debits [energy].
 This local-view of potential has been time-tested, and is basically the only form of potential
 you will find in the literature.
 Given this efficacy, you might wonder if it can be equally effective when placed in the setting
-of program analysis. And the answer - as will be made clear in this post
-of this post - is surprisingly *not always*. As it turns out, the reasoning we perform at the algorithm
-level sometimes obscures a *non-local* definition of \\(\Phi\\). This will be explained
-in the next section.
+of program analysis. And the answer is: *not quite*. As it turns out, the reasoning we perform at the algorithm
+level sometimes obscures that we are implicitly using a *non-local* definition of \\(\Phi\\). 
+We will see such examples in the next section.
 
 # Building a Program Analysis
 
@@ -171,7 +177,7 @@ builds up from a finer level of detail than an algorithm analysis, starting from
 the individual code operations. And it is here, in the nitty-gritty details of code-space analysis, that
 we find the physicist's method to be somewhat underspecified.
 
-To get to the code, we need to break up operations into smaller pieces.
+To get to the code, we need to break up algorithmic operations into smaller pieces.
 To a caller of our program, list insertion is one macro-operation, like we had above.
 But in the program itself, list insertion is the result of many micro-operations: array allocations,
 write accesses, etc. A program analysis needs to be able to reason on the level of these program-space micro-operations,
@@ -204,7 +210,7 @@ pool only needs to be able to pay out over the sequences of operations that our 
 > * an initial pool of energy \\(p_0 \geq 0\\)
 >
 > such that \\(\Phi(S_i) + p_{i} \geq \Phi(S_{i+1}) + p_{i+1} + C(S_i, o_i)\\)
-> across all non-negative energy pool sequences and state sequences and induced by \\(\mathsf{seq}\\)
+> across all non-negative energy pool sequences and state sequences induced by \\(\mathsf{seq}\\)
 > from \\(p_0\\) and any initial state \\(S_0\\), respectively
 >
 > Then for any sequence of \\(n\\) operations \\((o_i)\\) prefixing \\(\mathsf{seq}\\)
@@ -220,7 +226,7 @@ With this framework, our program analysis basically just needs to find a suitabl
 We already know that \\(\Phi\\) covers the potential on data structures, so \\(p_0\\) should deal with
 potential independent of data structures, i.e., \\(p_0\\) should be some constant.
 The interesting piece is therefore \\(\Phi\\), so lets focus there.
-We have already committed to a *local* definition of \\(\Phi\\), so our task is really just finding way of
+We are currently only considering a *local* definition of \\(\Phi\\), so our task is really just finding way of
 locally assigning potential
 to the parts of each individual data structure that might arise in our program.
 There might be many ways to do this,
@@ -230,7 +236,7 @@ to the type system called Automatic Amortized Resource Analysis (AARA), which au
 infers the required potential annotations, giving cost bounds in the process. (See [here](https://dl.acm.org/doi/pdf/10.1145/640128.604148) for its origin and [here](https://www.raml.co/) for an up-to-date implementation.)
 
 This localized-potential approach happens to work rather well in many cases. For instance, AARA
-can analayze sorting functions and many list manipulations without issue. Nonetheless, it is not hard to confound this approach.
+can analyze sorting functions and many list manipulations without issue. Nonetheless, it is not hard to confound this approach.
 Consider a simple loading function that populates one of our array-backed list from one of two other lists.
 When called, the load function first executes some code (e.g. `shouldComeFromList1`) to decide which list the data should
 come from, and then inserts it all one element at a time. Here we see what this might look like in pseudo-code[^python].
@@ -305,8 +311,9 @@ needs to have kept all its potential earlier, moving none into `dataCopy`. Howev
 this is followed by applying `process2` to `dataCopy`, which results in mirrored accounting for
 potential: all potential should have been moved `dataCopy`, with none left in `data`! Thus, no
 local allocation of \\(|\verb"data"|\\) potential suffices. Just like before, the local
-approach can only manage to overapproximate this exampe by a factor of 2, and can
+approach can only manage to overapproximate this example by a factor of 2, and can
 be exponentially worse in other examples.
+
 
 # The Quantum Physicist's Method
 
@@ -317,9 +324,10 @@ non-local phenomena, this analogy is already quite appropriate.
 
 The trick to making the quantum physicist's method work is to introduce "worldviews",
 which are somewhat analagous to states in [quantum superposition](https://en.wikipedia.org/wiki/Quantum_superposition).
-Each worldview has its own separate, local allocation of potential, and we work with as many
+Each worldview has its own separate allocation of locally-behaving potential, and we work with as many
 worldviews at a time as we choose. The big twist with these worldviews is that we allow them
-to allocate *negative* potential[^negative] wherever they want, so long as at least one worldview is totally non-negative --
+to allocate *negative* potential[^negative] wherever they want,
+so long as at least one worldview is totally non-negative --
 we call this non-negative worldview the "witness".
 When we consider a cost being paid, so long as *some* witness can pay normally without going negative,
 every other worldview may pay and go as negative as they like. As a result, every worldview
@@ -328,7 +336,9 @@ pays the same amount[^overpay] in lock step, and only differ as to how they allo
 Then we define the amount of potential \\(\Phi\\) assigns a collection of worldviews as
 the *max* across all worldviews. Since each worldview covers the cost individually, the change in max potential
 also covers the cost. And since the witness is non-negative,
-we know the potential is always sensically non-negative.
+we know the potential is always sensically non-negative. As a result, this max
+is able to provide the nonlocality we need, while also salvaging all the niceness of
+locality in each individual worldview.
 
 The mechanics of these worldviews might seem kind of weird, but when you see them in
 action they aren't so mysterious. Consider the following situation:
