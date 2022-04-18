@@ -454,4 +454,4 @@ to solve our analyses' problems. Thus, since potential is entirely a construct o
 we won't see any "transfer" functions written in the code to move potential.
 
 [^qt]: We call this particular way of accounting for how to get around the barrier of the vending machine
-"resource tunneling", because it is analgous to [quantum tunneling](https://en.wikipedia.org/wiki/Quantum_tunnelling) around a potential barrier.
+"resource tunneling", because it is analagous to [quantum tunneling](https://en.wikipedia.org/wiki/Quantum_tunnelling) around a potential barrier.
