@@ -249,14 +249,14 @@ and [here](https://www.raml.co/) for an up-to-date implementation.
 There are also a lot of different ways to approach this problem
 apart from AARA. Some approaches are more manual 
 (like [this](https://link.springer.com/chapter/10.1007/978-3-319-89884-1_19)
-verification framework using separation logic). Some add potential to 
-non-type-based techniques (like [this](https://dl.acm.org/doi/abs/10.1145/3408979) 
+verification framework using separation logic). Some use potential with 
+other traditional techniques (like [this](https://dl.acm.org/doi/abs/10.1145/3408979) 
 adaptation of recurrence solving). And some are designed for different 
 programming environments (like [this](https://drops.dagstuhl.de/opus/volltexte/2020/12355/pdf/LIPIcs-FSCD-2020-33.pdf)
 one for client-server interactions). I'm certain there are many more options still, 
 but the reason I bring up AARA in particular is that,
 while all of these approaches *could* potentially employ the quantum phyisicist's method in
-the future, AARA is the one that I *did* adapt to use the quantum physicist's method.
+the future, AARA is the only one that *has* (and I'm the one that did it).
 
  
 # Trouble in Paradise
