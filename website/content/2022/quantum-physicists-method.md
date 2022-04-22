@@ -30,20 +30,20 @@ committee = [
 
 The physicist's method is a powerful framework for cost analysis that
 many a computer scientist will learn at some point in their undergraduate career.
-However, its high-level description leaves some practical gaps, especially around
-how to actually bookkeep the finer details, and these details become important
-when trying to build up the method from low-level program operations.
-This post explains how to fill in these gaps to
-get the *quantum* physicist's method, a refinement of the physicist's method
+However, its high-level description leaves some practical gaps, especially concerning
+how to actually bookkeep its finer details, and these details become important
+when trying to build a more explicit accounting framework.
+This post explains how to fill in these gaps with
+the *quantum* physicist's method, a refinement of the physicist's method
 that is robust enough for automatic program analysis, as in
 my paper [here](https://dl.acm.org/doi/abs/10.1145/3473581). (Quick disclaimer: There is
-no quantum computing in here, despite the name.) To do show this
-result, this post will first explain the classical physicist's method
-for algorithm analysis,
-then describe the difficulties it encounters in more fine-grained
-program analysis, and finally lay out the quantum physicist's method
-itself.
-
+no quantum computing in here, despite the name.) To do explain the new
+bookkeeping devices of the quantum physicist's method,
+this post will first explain the classical physicist's method
+for algorithm analysis, then describe the difficulties it encounters when
+adapted to the domain of program analysis, and finally lay out the
+solution granted by bookkeeping with the quantum physicist's method.
+ 
 # The Classical Physicist's Method
 
 To make sense of the physicist's method (and the later refinements we'll make to it), it is
@@ -89,8 +89,9 @@ inefficient than it usually is.
 
 If instead we think through a lens of amortization, we find that insertion is, morally-speaking, a constant cost operation.
 Essentially, insertion is cheap enough often enough that prepaying a little extra at each common case
-can offset the high cost of the uncommon case. We can see how that looks in the graph below[^graph], where the spikes of cost
-don't exceed the constant-per-step payment.
+can offset the high cost of the uncommon case. We can see how that looks in the graph below[^graph], where the 
+black spikes of cost
+never exceed the red constant-per-step payment.
 
 ![a graph showing a constant-per-step bound over spiky costs](./amortizedgraph.jpeg)
 
@@ -98,7 +99,7 @@ To show this formally, we define a suitable *potential* function \\(\Phi\\) givi
 program state. Specifically, our desired \\(\Phi(A)\\) will be equal to twice the number of
 filled slots past
 the halfway point in the array \\(A\\).
-We will think of this like attaching a 2-charge battery to each individual array cell past the halfway point, so that
+We can think of this like attaching a 2-charge battery to each individual array cell past the halfway point, so that
 we deal with that battery's energy if and only if we access that array cell.
 The amortized cost of an operation \\(o\\) is then defined as \\(\Phi(o(A)) - \Phi(A) + C(A,o)\\), which is the difference in potential induced by \\(o\\) plus \\(C(A,o)\\) its true cost on the array \\(A\\).
 If we account for this potential energy alongside our normal costs, suddenly the cost profile becomes much smoother:
@@ -142,7 +143,7 @@ Now that you've seen an example, we can look at the general case:
 <p></p>
 
 The condition placed on \\(\Phi\\) and \\(a_{o_i}\\) is what corresponds to conservation of energy[^technically].
-The potential in the state \\(\Phi(S)\\), and the supplied extra energy \\(a_{o_i}\\) are sufficient to
+The potential in the state \\(\Phi(S)\\), and the extra energy paid \\(a_{o_i}\\) are sufficient to
 cover the potential stored in the resulting state \\(\Phi(o_i(S))\\) and the energy
 expenditure \\(C(S, o_i)\\) -- no new energy is created. With that condition in place, just like in physics,
 we can forget about intermediate states and just focus on the initial and ending states \\(S_0\\) and \\(S_{n}\\).
@@ -152,88 +153,113 @@ plus all the total supplied extra energy can pay for the total energy expenditur
 In the above formalization, you might notice that the form of the potential function \\(\Phi\\) is left abstract.
 The function *could* be any sort of complicated, non-uniform, ugly function. But it is no coincidence that
 the \\(\Phi\\) we chose in our above example was "nice". Specifically, this "niceness" amounts to potential being
-*local* - one can think of the state \\(S\\) as broken up into many pieces (our array cells), each with their own local amount of potential (our "batteries"), and then \\(\Phi\\) just gives the sum of potential stored on these different pieces.
-In fact, this appears to be exactly how Tarjan intended the bookkeeping for the physicist's method to be conceptualized:
+*local* -- one can think of the state \\(S\\) as broken up into many pieces (our array cells),
+each with their own local amount of potential (our "batteries").
+Then \\(\Phi\\) just gives the sum of potential stored on these different pieces,
+and adjusts the potential on a piece only when that piece is directly operated on.
+In fact, this appears to be exactly how Tarjan intended the
+bookkeeping for the physicist's method to be conceptualized:
 
->To keep track of saved or borrowed credits [potential], it is generally convenient to
-store them in the data structure. ... It is important to
+>In order to keep track of saved or borrowed credits [potential], it is generally convenient to
+store them in the data structure. Regions of the structure containing credits are
+unusually hard to access or update (the credits saved are there to pay for extra work);
+regions containing "debits" are unusually easy to access or update. It is important to
 realize that this is only an accounting device; the programs that actually manipulate
-the data structure contain no mention of credits or debits [energy].
+the data structure contain no mention of credits or debits.
 
---[Tarjan](https://epubs.siam.org/doi/pdf/10.1137/0606031?casa_token=cR8nppnD8MQAAAAA%3AgK8XhJzUtPvkIVXTHIe299HSRuczuwiYVM74VDBjOMpHDlLcZLIVlziYWpRQMHeuN3lz84b9kIUg&)
+-- Tarjan in [*Amortized Computational Complexity*](https://epubs.siam.org/doi/pdf/10.1137/0606031?casa_token=cR8nppnD8MQAAAAA%3AgK8XhJzUtPvkIVXTHIe299HSRuczuwiYVM74VDBjOMpHDlLcZLIVlziYWpRQMHeuN3lz84b9kIUg&)
+
 
 This local-view of potential has been time-tested, and is basically the only form of potential
-you will find in the literature.
-Given this efficacy, you might wonder if it can be equally effective when placed in the setting
-of program analysis. And the answer is: *not quite*. As it turns out, the reasoning we perform at the algorithm
-level sometimes obscures that we are implicitly using a *non-local* definition of \\(\Phi\\). 
-We will see such examples in the next section.
+you will find in the literature. As such, our goal throughout the rest of this
+post will be to keep our definition of potential as local as possible.
 
 # Building a Program Analysis
 
-To build a program analysis based on the physicist's method, we first need to refine
-our view of operations and energy payments. This is because a program analysis
-builds up from a finer level of detail than an algorithm analysis, starting from
-the individual code operations. And it is here, in the nitty-gritty details of code-space analysis, that
-we find the physicist's method to be somewhat underspecified.
+To build a program analysis based on the physicist's method, we first need to
+adapt the framework above. This is because some of the assumptions made
+above are simply not applicable in our programmatic setting. The differences
+are mostly technical, but accounting for them does lead to a slightly
+different-looking theorem.
 
-To get to the code, we need to break up algorithmic operations into smaller pieces.
-To a caller of our program, list insertion is one macro-operation, like we had above.
-But in the program itself, list insertion is the result of many micro-operations: array allocations,
-write accesses, etc. A program analysis needs to be able to reason on the level of these program-space micro-operations,
-and build them up to the resulting macro-operation. So our program analysis should focus on
-expressing macro-operations in terms of specific sequences of micro-operations, at which point
-the classical physicist's method can take us the rest of the way to recovering the full analysis.
+1. The above framework assumes that operations can be executed in any order.
+This makes sense when treating the collection of operations like an
+interface -- you don't know what order an external user might call operations, so
+your analysis needs to be prepared for anything. However this assumption
+is wrong for analyzing a program (like the implementation of such an interface).
+The program itself dictates specific sequences of operations, and the
+analysis must take this into account to get sensible results[^timesensitive].
 
-Reasoning about these micro-operations, however, is not quite the same as reasoning
-about the macro-operations. The extra energy payments \\(a_o\\) are still at the macro level -
-costs are meant for the caller, since energy conservation prevents the program itself
-from supplying extra energy. Thus, while the extra energy \\(a_o\\) previously came in on an
-operation-by-operation basis for algorithm analysis, a program analysis should instead imagine that payment is dealt out of some
-pre-existing energy store \\(p_i \geq 0\\) supplied by the caller. To explicitly connect back to the
-classical framework, \\(p_0\\) for the first micro-operation of
-macro-operation \\(o\\) should be equal to \\(a_o\\), since that is how
-much the caller pays.
+2. The above framework assumes that extra energy \\(a_o\\) is
+paid out on a per-operation basis.
+Again, this makes sense when reasoning about an interface, since an external
+user pays for each operation they call. However, when a program executes an operation,
+there is no external user to introduce extra energy into the system, so costs
+must be paid solely out of the energy supply internal to the program, i.e., the potential
+of the state[^pool].
 
-After adapting the theorem from the previous section to our new focus, we are left with something
-like the statement below. The main differences from the previous theorem are that we reason about our energy pool \\(p_i\\) instead of
-extra supplied energy \\(a_o\\), and that we only consider *some* sequences of operations. The energy
-pool only needs to be able to pay out over the sequences of operations that our program's code could induce.
+After adapting the theorem from the previous section to account for these
+differences we are left with something
+like the statement below. The main changes are that we consider only certain
+sequences of operations, and that we drop amortized costs.
 
 > Given:
-> * a set of (micro-)operations \\(\mathsf{op} = \mathsf{state} \rightarrow \mathsf{state} \\)
+> * a set of operations \\(\mathsf{op} = \mathsf{state} \rightarrow \mathsf{state} \\)
 > * a collection of possible sequences of such operations \\(\mathsf{seq}\\)
 > * a true cost function \\(C : \mathsf{state} \times \mathsf{op} \rightarrow \mathbb{R}\\)
 >
 > If you can find:
 > * a potential function \\(\Phi : \mathsf{state} \rightarrow \mathbb{R}_{\geq 0}\\) 
-> * an initial pool of energy \\(p_0 \geq 0\\)
 >
-> such that \\(\Phi(S_i) + p_{i} \geq \Phi(S_{i+1}) + p_{i+1} + C(S_i, o_i)\\)
-> across all non-negative energy pool sequences and state sequences induced by \\(\mathsf{seq}\\)
-> from \\(p_0\\) and any initial state \\(S_0\\), respectively
+> such that \\(\Phi(S_i) \geq \Phi(S_{i+1}) + C(S_i, o_i)\\)
+> across all state sequences induced by \\(\mathsf{seq}\\)
+> from any initial state \\(S_0\\)
 >
 > Then for any sequence of \\(n\\) operations \\((o_i)\\) prefixing \\(\mathsf{seq}\\)
 > and the sequence of states \\((S_i)\\) that they induce:
 >
-> \\[\Phi(S_{0}) + p_0  - \Phi(S_{n}) - p_n \geq \sum_{i=0}^{i<n} C(S_i, o_i)\\]
+> \\[\Phi(S_{0}) - \Phi(S_{n}) \geq \sum_{i=0}^{i<n} C(S_i, o_i)\\]
 >
-> i.e., difference in energy bounds the total cost at every point
+> i.e., difference in energy bounds the total cost at every point[^corollary]
 
 <p></p>
 
-With this framework, our program analysis basically just needs to find a suitable \\(\Phi\\) and \\(p_0\\).
-We already know that \\(\Phi\\) covers the potential on data structures, so \\(p_0\\) should deal with
-potential independent of data structures, i.e., \\(p_0\\) should be some constant.
-The interesting piece is therefore \\(\Phi\\), so lets focus there.
-We are currently only considering a *local* definition of \\(\Phi\\), so our task is really just finding way of
+With this framework, our program analysis just needs to find a suitable \\(\Phi\\).
+We are currently only considering a *local* definition of \\(\Phi\\), so our
+task is really just finding way of
 locally assigning potential
-to the parts of each individual data structure that might arise in our program.
-There might be many ways to do this,
-but one simple option is to let the type of a data structure include some annotation indicating how much potential it
-stores where, like "list but with 2 unit of potential per element". This eventually leads
-to the type system called Automatic Amortized Resource Analysis (AARA), which automatically
-infers the required potential annotations, giving cost bounds in the process. (See [here](https://dl.acm.org/doi/pdf/10.1145/640128.604148) for its origin and [here](https://www.raml.co/) for an up-to-date implementation.)
+to the parts of each individual data structure at each point in our program.
+
+There might be many ways to find such a local \\(\Phi\\),
+but one simple option is to type the data structures. These
+types can then include some annotation indicating how much potential the data structure
+stores where, like "list but with 2 unit of potential per element". This tells
+you exactly how much potential each piece holds, making it easy to recover a
+locally-definable \\(\Phi\\).
+
+If you run
+with this idea, you might eventually get something that looks similar to
+the type system called Automatic Amortized Resource Analysis (AARA).
+AARA can infer a valid \\(\Phi\\) through the inference of
+potential-carrying types, and is fully automatable (as its name suggests).
+See [here](https://dl.acm.org/doi/pdf/10.1145/640128.604148) for AARA's origin
+and [here](https://www.raml.co/) for an up-to-date implementation.
+
+
+There are also a lot of different ways to approach this problem
+apart from AARA. Some approaches are more manual 
+(like [this](https://link.springer.com/chapter/10.1007/978-3-319-89884-1_19)
+verification framework using separation logic). Some add potential to 
+non-type-based techniques (like [this](https://dl.acm.org/doi/abs/10.1145/3408979) 
+adaptation of recurrence solving). And some are designed for different 
+programming environments (like [this](https://drops.dagstuhl.de/opus/volltexte/2020/12355/pdf/LIPIcs-FSCD-2020-33.pdf)
+one for client-server interactions). I'm certain there are many more options still, 
+but the reason I bring up AARA in particular is that,
+while all of these approaches *could* potentially employ the quantum phyisicist's method in
+the future, AARA is the one that I *did* adapt to use the quantum physicist's method.
+
+ 
+# Trouble in Paradise
 
 This localized-potential approach happens to work rather well in many cases. For instance, AARA
 can analyze sorting functions and many list manipulations without issue. Nonetheless, it is not hard to confound this approach.
@@ -264,8 +290,9 @@ expressible in a local way - at best, the local approach can overapproximate
 And while this bound can only be loose by a constant factor of 2, other examples can loosen the bound to be exponentially worse
 (like binary search [here](https://dl.acm.org/doi/abs/10.1145/3473581)).
 
-At this point, you might think the bound looseness is just some weakness on *our* end, where
-presumably *some* localization of the tightest potential exists, but we just can't figure it out.
+At this point, you might think the bound looseness
+is just some weakness on *the analysis's* end, where
+presumably *some* localization of the tightest potential exists, but the analysis just can't figure it out.
 However, the situation is actually worse:
 We can create an example where *no* tight localization suffices, even while nonlocal reasoning
 makes a tight solution obvious[^Bell].
@@ -279,10 +306,12 @@ their *peak* cost, the high water mark of the number of resources in use at one 
 These resources are therefore a bit more complicated than resources that only tick down, like
 time. This makes it easy to create a situation with no tight localization of potential, like that below.
 
-To see this problem in action, imagine we have a list of data, and two different data processing procedures
-`process1` and `process2`. To compare the results of these procedures, we might write the code below.
-How should we account for the *memory* cost of the comparison, if both `process1` and `process2` temporarily
-use one unit of memory per element in the list, and we assume that copying is free?
+To see this problem in action, imagine we have a list of data, and two different
+data processing procedures `process1` and `process2`. To compare the results of
+these procedures, we might write the code below.
+How should we account for the *memory* cost of the comparison, if each of `copy`[^copy],
+`process1`, and `process2` temporarily
+use one unit of memory per element in the list?
 
 ```python
 def copy(list):
@@ -296,52 +325,85 @@ def processBoth(data):
     return (process1(data), process2(dataCopy))
 ```
 
-It seems obvious from the outset that whatever memory `process1` uses can be reused for `process2`,
-since both act on lists of equal length. So, we should only need to allocate \\(|\verb"data"|\\)
-memory units. However, if that is all we have, accounting for it locally is impossible.
+It seems obvious from the outset that whatever memory `copy` uses can be
+reused for `process1`, and that `process1`'s memory in turn can be reused for `process2`,
+since all act on lists of equal length. So, we should only need to allocate \\(|\verb"data"|\\)
+memory units. However, if that is all the memory we have,
+accounting for it locally is impossible.
 
 To follow the accounting, let's step through a call to `processBoth`. We start with the only
 data structure being our input `data`, so it must contain all the potential.
-We proceed to copy [^copy] `data` to ready it for each of the processing functions.
-This copying procedure accesses all the cells of `data`, so some amount of potential could
-have been moved into `dataCopy`. Then `process1` is applied to `data`, requiring all of
+We proceed to copy `data` to ready it for each of the processing functions.
+This copying procedure temporarily uses all the \\(|\verb"data"|\\) memory units,
+leaving some amount stored on `data` and some amount stored on `dataCopy` when
+the memory is returned.
+Then `process1` is applied to `data`, requiring all of
 the \\(|\verb"data"|\\) memory units. Now, because `process1` doesn't touch
-`dataCopy`, `process1` cannot use any of the potential in `dataCopy` -- this means `data`
-needs to have kept all its potential earlier, moving none into `dataCopy`. However,
+`dataCopy`, `process1` cannot use any of the potential in `dataCopy`
+ -- this means `data`
+needs to have recieved all the potential, and none is stored on `dataCopy`. However,
 this is followed by applying `process2` to `dataCopy`, which results in mirrored accounting for
-potential: all potential should have been moved `dataCopy`, with none left in `data`! Thus, no
-local allocation of \\(|\verb"data"|\\) potential suffices. Just like before, the local
+potential: all potential should have been returned to `dataCopy`, with none stored in `data`!
+While we intuitively know that this could be solved by having `process1` return
+potential to `dataCopy`, there is never a time where `process1` and `dataCopy`
+are local to the same operation.
+Thus, no local allocation of \\(|\verb"data"|\\) potential suffices.
+Just like before, the local
 approach can only manage to overapproximate this example by a factor of 2, and can
 be exponentially worse in other examples.
 
 
 # The Quantum Physicist's Method
 
-So far, our situation is rather unfortunate. We have this beautiful framework for algorithm analysis,
-but when we zoom in to the level of code it weakens considerably. However, there is a solution:
-the *quantum* physicist's method. Given that we've zoomed down to the micro-level and found
-non-local phenomena, this analogy is already quite appropriate.
+So far, our situation is rather unfortunate. We have this beautiful framework
+from algorithm analysis, but when we naively adapt it to a program analysis we
+must sacrifice either the efficacy of the result or the beauty of locality.
+However, there is a solution: bookkeeping using the *quantum* physicist's method.
+To keep this section intelligible to non-physicists, this section will focus on
+the actual execution of the method, while any quantum
+physical parallels that come up will be kept
+contained in the footnotes.
 
-The trick to making the quantum physicist's method work is to introduce "worldviews",
-which are somewhat analagous to states in [quantum superposition](https://en.wikipedia.org/wiki/Quantum_superposition).
-Each worldview has its own separate allocation of locally-behaving potential, and we work with as many
-worldviews at a time as we choose. The big twist with these worldviews is that we allow them
-to allocate *negative* potential[^negative] wherever they want,
-so long as at least one worldview is totally non-negative --
-we call this non-negative worldview the "witness".
-When we consider a cost being paid, so long as *some* witness can pay normally without going negative,
-every other worldview may pay and go as negative as they like. As a result, every worldview
-pays the same amount[^overpay] in lock step, and only differ as to how they allocate their potential.
+The idea behind the quantum physicist's method is to introduce
+the accounting device of "worldviews". Each individual worldview 
+\\(\phi_j : \mathsf{state} \rightarrow \mathbb{R} \\) is
+just a normal local accounting of potential like like our previous \\(\Phi\\), 
+though with the added caveat that they are
+allowed to locally assign *negative* amounts of potential under special
+conditions[^detail].
 
-Then we define the amount of potential \\(\Phi\\) assigns a collection of worldviews as
-the *max* across all worldviews. Since each worldview covers the cost individually, the change in max potential
-also covers the cost. And since the witness is non-negative,
-we know the potential is always sensically non-negative. As a result, this max
-is able to provide the nonlocality we need, while also salvaging all the niceness of
-locality in each individual worldview.
+Formally, the collection of worldviews satisfies the following
+properties for all state sequences induced by \\(\mathsf{seq}\\)
+from any initial state \\(S_0\\)
 
-The mechanics of these worldviews might seem kind of weird, but when you see them in
-action they aren't so mysterious. Consider the following situation:
+1.  \\(\forall j. \hspace{4pt} \phi_j(S_i) \geq \phi_j(S_{i+1}) + C(S_i, o_i)\\),
+i.e., every worldview pays out the usual costs
+
+2.  \\(\exists j. \hspace{4pt} \forall T\subseteq S_i. \hspace{4pt} \phi_j(S_i) \geq 0 \\),
+i.e., some worldview is classically valid, wherein potential is non-negative
+everywhere[^whole]
+
+Given these properties, one can prove the following key theorem:
+
+> 
+> Theorem: \\(max_j\phi_j\\) is a suitable definition
+> of \\(\Phi\\) for the classical physicist's method
+>
+
+Indeed, the first property meets the bulk of the requirements for a valid
+potential function, and the second property ensures that the max potential
+is always classically valid.
+
+You might at this point wonder what this new way of finding a potential 
+function buys us. The answer is that this simple way of combining our 
+familiar local accounts of potential introduces some powerful *nonlocal* 
+flexibility. By allowing different worldviews to tactically "go into debt",
+this method can infer tighter cost bounds than naive local reasoning can usually 
+supply.
+
+To better understand how the mechanics of these worldviews actually work,
+it might help to walk through a situation without so much technical cruft:
+Suppose that
 Alice and Bob get $5 to share from their parents to spend on candy in a candy store. Alice wants a $3
 pack of caramels and Bob wants a $2 chocolate bar. However, Alice's caramels are in a
 vending machine that only takes $5 bills. If Alice keeps $5 to herself, then Bob can't buy his candy.
@@ -359,11 +421,12 @@ We can bookkeep this the following way:
 | Alice/Bob money split |  5/0  | 0/0        | 2/0        | 0/2      | 0/0      |
 
 And this is exactly what we want, with one small caveat:
-As mentioned in the Tarjan quote above, we don't actually have operations
-that manipulate potential -- potential is entirely ephemeral[^alter].
-Thus, the "transfer" from this
-bookkeeping is not something we can adapt to our analysis. This is why we need to use worldviews.
-So, we give the following accounting for the exact same circumstance, now using the mechanics of worldviews:
+The "transfer" operation is actually quite nontrivial to work with. Only
+highly specialized programming languages will even have constructs for *mentioning*
+potential, and those that do will be burdened (or burden the programmer) with
+figuring out how such constructs can be soundly used. But, by using worldviews for
+bookkeeping, this whole problem can be bypassed entirely. We provide such an
+account below:
 
 |                                   | start | Alice buys | get change | Bob Buys |
 |:---------------------------------:|:-----:|------------|------------|----------|
@@ -373,9 +436,9 @@ So, we give the following accounting for the exact same circumstance, now using 
 With this worldview accounting[^qt], we pay the exact same amount out of the same place at each step.
 The only difference between the two worldviews is that worldview 1 starts in the allocation of money needed
 for Alice to buy her candy, and worldview 2 starts in the allocation needed for Bob to buy his. Then,
-we find that the problematic "transfer" occurs where the witness switches between worldviews --
-we see that happen at "get change", since worldview 1 is the witness at "Alice buys", and
-worldview 2 is the witness at "Bob buys". This pattern will hold in general, allowing transfers
+we find that the problematic "transfer" occurs where different worldviews become classically valid --
+we see that happen at "get change", since worldview 1 is classically valid at "Alice buys", and
+worldview 2 is classically valid at "Bob buys". This pattern will hold in general, allowing transfers
 to be coded completely implicitly into our analysis.
 
 Using worldviews like this, we can solve both of the problems from the previous section:
@@ -390,19 +453,14 @@ to `dataCopy`. The former can be the witness while applying `process1`, and the 
 In either case the max amount of potential across the worldviews is exactly the tight amount of potential
 we wanted assigned.
 
-And so, with worldviews in hand, we can more accurately build up a cost analysis from the micro- to macro-level
-of operations. This gives us the results we expect for macro-operations, so we can then rely on
-classical physicist's method reasoning to stitch together any macro-operations.
-That gives us our full picture of program analysis.
-
-# Wrap Up
-
-Now you've seen how the quantum physicist's method fills in the gaps at the micro-level left by the
-classical physicist's method. Worldviews salvage the niceness of locality by wrapping a bunch of local accountings
-together and letting them make each other more flexible. Then we can slot the results of analyzing each
-macro-operation directly into our classical physicist's method framework. This
+And so, with worldviews in hand, we can salvage the niceness of locality by wrapping a bunch of local accountings
+together and letting them make each other more flexible. From such an accounting we can
+reconstruct a potential function that satisfies the standard framework for 
+amortized analysis. This
 leaves us with a program analysis built off the physicist's method that can give many tighter
 bounds than its predecessors.
+
+# Wrap Up
 
 If you are interested in seeing such an analysis in action,
 I'll point you again to my work extending AARA [here](https://dl.acm.org/doi/abs/10.1145/3473581).
@@ -410,8 +468,7 @@ My paper adds the quantum physicist's method along with some special infrastruct
 uses its new capabilities to be able to automatically reason about memory usage and tree depth. The work also
 comes with an implementation, a description of how it was designed, and tables of experiments run with it on
 the OCaml standard library `Set` module. The implementation never gave worse cost bounds than the local approach, and often
-gave much better ones. You can check it out and see for yourself - the quantum physicist's method is a real improvement in program
-cost analysis!
+gave much better ones. You can check it out and see for yourself!
 
 [^grav]: Specifically, they both have \\(1\mathsf{kg} * 9.81\frac{\mathsf{m}}{\mathsf{s}^2} * 1 \mathsf{m} = 9.81 \mathsf{J}\\) of energy.
 
@@ -433,9 +490,28 @@ and the [`vector` in C++](https://www.cplusplus.com/reference/vector/vector/), a
 in an upper-bound on cost. Energy conservation means both non-creation and
 non-loss of energy. Adapting the amortized analysis framework to non-loss would result in a lower-bound on cost.
 
+[^timesensitive]: To help with this order-sensitivity, we will also from
+now on consider the program state to have some notion of where it lies in
+execution, like a program counter. However, this is just a technical point to
+allow \\(\Phi\\) the flexibility to leverage operation order, and its exact
+implementation is not important.
+
+[^pool]: One might consider that external energy could be introduced at the
+very start when a user calls on the program to execute. However, we will just
+streamline this initial
+payment by treating it as part of the energy assigned 
+to the initial program state.
+
+[^corollary]: As a corollary, since the amortized cost payments are gone,
+we also find that the potential of the initial
+state bounds the peak cost. This is more useful to measure resources like memory.
+
 [^python]: By pseudo-code I mean python.
 
 [^Bell]: For those with a physics background, you might consider this our version of a [Bell test](https://en.wikipedia.org/wiki/Bell_test).
+In physics, this is a case proving that *local realism* is incompatible with
+quantum quantum mechanics; in our setting, it is a case proving that
+purely local potential is insufficient for a tight cost analysis.
 
 [^neg]: This return of energy is modeled in our framework simply by letting \\(C\\) return negative costs.
 
@@ -443,15 +519,35 @@ non-loss of energy. Adapting the amortized analysis framework to non-loss would 
 the pertinent features of code pattern also come up in side-effect free settings during, e.g., tree traversal.
 See [here](https://dl.acm.org/doi/abs/10.1145/3473581).
 
-[^negative]: A hallmark of quantum mechanics is the inclusion of negative quantities that classically
-can't be negative -- specifically, negative probabilities.
-
 [^overpay]: Well, technically a worldview could choose to overpay for the cost too.
 
-[^alter]: This is still the right idea for program analysis. Programmers write code to solve their own
-problems, and analysis comes after the fact. We wouldn't want to burden programmers with *also* writing
-to solve our analyses' problems. Thus, since potential is entirely a construct of the analysis,
-we won't see any "transfer" functions written in the code to move potential.
+[^detail]:This sets up our worldviews to begin looking somewhat like
+states in [quantum superposition](https://en.wikipedia.org/wiki/Quantum_superposition).
+Both are collections of simultaneous classical-looking states, just with negative
+values allowed where they usually wouldn't be. In quantum physics, those values are
+probabilities; in our setting, they are potentials.
+
+[^whole]: While only a technical point here, the consequences of
+allowing the accumulation of negative potential in some parts of the
+program state does
+provide another quantum physical parallel. Two famous no-go theorems of 
+quantum physics, [*no-cloning*](https://en.wikipedia.org/wiki/No-cloning_theorem) 
+and [*no-deleting*](https://en.wikipedia.org/wiki/No-deleting_theorem), mean 
+that a quantum state cannot simply duplicate or delete one of its pieces. These 
+same principles are relevant to the progam states of the quantum physicist's method: We cannot 
+simply duplicate potential when copying a datastructure, nor may we simply lose potential
+when deleting/ignoring a datastructure. Either case could
+introduce extra potential, when positive amounts are duplicated or negative amounts
+are lost, which would violate conservation.
 
 [^qt]: We call this particular way of accounting for how to get around the barrier of the vending machine
-"resource tunneling", because it is analagous to [quantum tunneling](https://en.wikipedia.org/wiki/Quantum_tunnelling) around a potential barrier.
+"resource tunneling", because it is analagous to 
+[quantum tunneling](https://en.wikipedia.org/wiki/Quantum_tunnelling) 
+around a potential barrier. In quantum physics, this occurs because a 
+particle's position (or energy, depending on what you measure) is in a 
+superposition of many states, a small portion of which allow being on the
+other side of the potential barrier; in our setting, it is because potential 
+is tracked through the collection of worldviews, at least one of which is 
+sufficient to pay for the potential needed. In either case, there may be no
+one state of the collection that can explain the tunneling; no state that, 
+if tracked individually from the start, could pass the potential barrier.
