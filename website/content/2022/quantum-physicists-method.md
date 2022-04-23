@@ -444,11 +444,11 @@ to be coded completely implicitly into our analysis.
 Using worldviews like this, we can solve both of the problems from the previous section:
 
 * To solve the first -- the data loading problem -- simply start with 2 worldviews: one where `list1` carries all potential,
-and one where `list2` does. No matter which list pays, there will then be a valid witness worldview.
+and one where `list2` does. No matter which list pays, there will then be a classically valid worldview.
 
 * To solve the second -- the data processing problem -- start with 2 worldviews assigning `data` all the potential. Then upon copying,
 let the worldviews diverge -- one leaves all the potential on `data`, and one moves it all
-to `dataCopy`. The former can be the witness while applying `process1`, and the latter when applying `process2`.
+to `dataCopy`. The former can be the classically valid one while applying `process1`, and the latter when applying `process2`.
 
 In either case the max amount of potential across the worldviews is exactly the tight amount of potential
 we wanted assigned.
