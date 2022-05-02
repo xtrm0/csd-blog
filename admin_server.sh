@@ -5,9 +5,11 @@ if [ "$#" -ne 1 ]; then
   exit 1
 fi
 
-git fetch origin "pull/${1}/head:pr-${1}" || exit 1
-git checkout "pr-${1}" || exit 2
-git pull origin "refs/pull/${1}/head" || exit 3
+git checkout main && git pull origin main || exit 1
+git fetch origin "pull/${1}/head:pr-${1}" || exit 2
+git checkout "pr-${1}" || exit 3
+git pull origin "refs/pull/${1}/head" || exit 4
+git merge origin/main --no-edit --no-commit || exit 5
 
 cd website/ || exit 255
 ../binaries/use_zola serve

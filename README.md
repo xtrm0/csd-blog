@@ -27,13 +27,20 @@ hosted at https://www.cs.cmu.edu/~csd-phd-blog/
    "Underwater Basketweaving: A New Approach to Fast Weaving", an
    ideal filename would be `underwater-basketweaving.md`. This file is
    written in Markdown, and the template shows common uses for most
-   supported Markdown. If you need help with writing Markdown, please
-   refer to the [CommonMark help](https://commonmark.org/help/). If
-   you need to use LaTeX in your blogpost, you can use `\\( x^y \\)`
-   for inline LaTeX, and `\\[ x^y \\]` or `$$ x^y $$` block-style
-   LaTeX. If you want to dive deeper into more advanced stuff you can
-   do, you can look at the
-   [documentation](https://www.getzola.org/documentation/) for the
+   supported Markdown. Make sure to read all the instructions given in
+   the `template.md` file too. If you require images (or other static
+   content) for your blogpost, please make the folder
+   `website/static/YEAR/BLOGPOSTNAME` and place the image files in
+   it. This will allow you to introduce images in your Markdown file
+   directly using `![alttext for foo](./foo.png)`, `![alt text for
+   this image](./asdf.jpg)`, etc. Make sure you are using good
+   alt-text, necessary for accessibility for visually impaired
+   users. If you need help with writing Markdown, please refer to the
+   [CommonMark help](https://commonmark.org/help/). If you need to use
+   LaTeX in your blogpost, you can use `\\( x^y \\)` for inline LaTeX,
+   and `\\[ x^y \\]` or `$$ x^y $$` block-style LaTeX. If you want to
+   dive deeper into more advanced stuff you can do, you can look at
+   the [documentation](https://www.getzola.org/documentation/) for the
    site generator being used, Zola.
 6. Run `./local_server.sh` to build the website and view it
    locally. This will start the local server to serve the website at
@@ -52,8 +59,9 @@ hosted at https://www.cs.cmu.edu/~csd-phd-blog/
    Program Manager. A blank version of this form can be found at the
    root of the blog repository as `WritingSkillsApprovalForm.pdf`.
 10. Commit your changes to your fork of the repository (`git add
-    content/YEAR/BLOGNAME.md` and `git commit -m 'Blogpost by Harry
-    Bovik'`) and push changes to GitHub (`git push`).
+    content/YEAR/BLOGPOSTNAME.md`, `git add
+    website/static/YEAR/BLOGPOSTNAME` and `git commit -m 'Blogpost by
+    Harry Bovik'`) and push changes to GitHub (`git push`).
 11. Make a pull request to the official repository by clicking the
     pull request button, adding all requested information.
 12. Wait for the web-admin to confirm that everything is on order and
