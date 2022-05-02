@@ -110,9 +110,9 @@ We now have our first principle of CRDT design:
 
 Although it is simple, the Unique Set forms the basis for the rest of our CRDTs.
 
-> **Aside.** Traditionally, one proves CRDT correctness by proving that concurrent messages *commute*---they have the same effect regardless of delivery order ([Shapiro et al. 2011](http://dx.doi.org/10.1007/978-3-642-24550-3_29))---or that the final state is a function of the causally-ordered message history ([Baquero, Almeida, and Shoker 2014](https://doi.org/10.1007/978-3-662-43352-2_11)). However, as long as you stick to the techniques in this blog post, you won't need explicit proofs: everything builds on the Unique Set in ways that trivially preserve CRDT correctness. For example, a deterministic view of a Unique Set is obviously still a CRDT.
+<!-- > **Aside.** Traditionally, one proves CRDT correctness by proving that concurrent messages *commute*---they have the same effect regardless of delivery order ([Shapiro et al. 2011](http://dx.doi.org/10.1007/978-3-642-24550-3_29))---or that the final state is a function of the causally-ordered message history ([Baquero, Almeida, and Shoker 2014](https://doi.org/10.1007/978-3-662-43352-2_11)). However, as long as you stick to the techniques in this blog post, you won't need explicit proofs: everything builds on the Unique Set in ways that trivially preserve CRDT correctness. For example, a deterministic view of a Unique Set is obviously still a CRDT.
 
-<p></p><br /> 
+<p></p><br /> -->
 
 ## Lists
 
@@ -120,11 +120,11 @@ Our next CRDT is a **list CRDT**. It represents a list of elements, with `insert
 
 Formally, the operations on a list CRDT are:
 - `insert(i, x)`: Inserts a new element with value `x` at index `i`, between the existing elements at indices `i` and `i+1`. All later elements (index `>= i+1`) are shifted one to the right.
-- `delete(i)`: Deletes the element at index `i`. All later elements (index `>= i+1`) are shifted one the left.
+- `delete(i)`: Deletes the element at index `i`. All later elements (index `>= i+1`) are shifted one to the left.
 
 We now need to decide on the semantics, i.e., what is the result of various insert and delete operations, possibly concurrent. The fact that insertions are unique suggests using a Unique Set ([Principle 1](#principle-1)). However, we also have to account for indices and the list order.
 
-One approach would use indices directly: when a user calls `insert(i, x)`, they send `(i, x)` to the other users, who use `i` to insert `x` at the appropriate location. The challenge is that your intended insertion index might move around as a result of users inserting/deleting in front of `i`.
+One approach would use indices directly: when a user calls `insert(i, x)`, they send `(i, x)` to the other users, who use `i` to insert `x` at the appropriate location. The challenge is that your intended insertion index might move around as a result of users' inserting/deleting in front of `i`.
 
 ![The *gray* cat jumped on **the** table.](ot.png)
 <p align="center"><i>Alice typed " the" at index 17, but concurrently, Bob typed " gray" in front of her. From Bob's perspective, Alice's insert should happen at index 22.</i></p>
@@ -235,7 +235,7 @@ We can likewise make a **list of CRDTs**.
 **Examples:**
 - In a shared folder containing multiple collaborative documents, you can define your document CRDT, then use a Unique Set of document CRDTs to model the whole folder. (You can also use a CRDT-valued map from names to documents, but then documents can't be renamed, and documents "created" concurrently with the same name will end up merged.)
 <!--- In a todo-list app, you can define a "todo-item CRDT" with fields `text` and `done`, giving the item text and whether it is done. The whole app's state is then a list of todo-item CRDTs.-->
-- Continuing the Quill rich-text example from the previous section, you can model a rich-text document as a list of "rich character CRDTs", where each "rich character CRDT" consists of an immutable (non-CRDT) character plus the `attributes` map CRDT. This is sufficient to build [a simple Google Docs-style app with CRDTs](https://compoventuals-tests.herokuapp.com/host.html?network=ws&container=demos/rich-text/dist/rich_text.html) ([source](https://github.com/composablesys/collabs/blob/master/demos/rich-text/src/rich_text.ts)).
+- Continuing the Quill rich-text example from the previous section, you can model a rich-text document as a list of "rich character CRDTs", where each "rich character CRDT" consists of an immutable (non-CRDT) character plus the `attributes` map CRDT. This is sufficient to build [a simple Google Docs-style app with CRDTs](https://compoventuals-tests.herokuapp.com/host.html?network=ws&container=demos/rich-text/dist/rich_text.html) ([source](https://github.com/composablesys/collabs/blob/master/demos/apps/rich-text/src/rich_text.ts)).
 
 ## Using Composition
 
@@ -248,7 +248,7 @@ To accommodate as many operations as possible while preserving user intention, I
 <a name="principle-4"></a>**Principle 4. Independent operations (in the user's mind) should act on independent state.**
 
 **Examples:**
-<!-- - As mentioned earlier, you can represent the position and size of an image in a collaborative slide editor by using separate registers for the left, top, width, and height. If you wanted, you could instead use a single register whose value is a tuple (left, top, width, height), but this would violate Principle 4. Indeed, then if one user moved the image while another resized it, one of their changes would overwrite the other, instead of both moving and resizing. <!--Likewise, it would be a mistake to replace (left, top, width, height) with (left, top, right, bottom) (this also violates [Principle 2](#principle-2)).-->
+- As mentioned earlier, you can represent the position and size of an image in a collaborative slide editor by using separate registers for the left, top, width, and height. If you wanted, you could instead use a single register whose value is a tuple (left, top, width, height), but this would violate Principle 4. Indeed, then if one user moved the image while another resized it, one of their changes would overwrite the other, instead of both moving and resizing. <!--Likewise, it would be a mistake to replace (left, top, width, height) with (left, top, right, bottom) (this also violates [Principle 2](#principle-2)).-->
 - Again in a collaborative slide editor, you might initially model the slide list as a list of slide CRDTs. However, this provides no way for users to move slides around in the list, e.g., swap the order of two slides. You could implement a move operation using cut-and-paste, but then slide edits concurrent to a move will be lost, even though they are intuitively independent operations.<br />
 <a name="list-with-move"></a>Following Principle 4, you should instead implement move operations by modifying some state independent of the slide itself. You can do this by replacing the *list* of slides with a *Unique Set* of objects `{ slide, positionReg }`, where `positionReg` is an LWW register indicating the position. To move a slide, you create a unique new position like in a list CRDT, then set the value of `positionReg` equal to that position. This construction gives the [**list-with-move**](https://doi.org/10.1145/3380787.3393677) CRDT.
 
