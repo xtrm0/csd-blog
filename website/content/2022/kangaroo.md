@@ -2,7 +2,7 @@
 # The title of your blogpost. No sub-titles are allowed, nor are line-breaks.
 title = "Kangaroo: Caching billions of tiny objects on flash"
 # Date must be written in YYYY-MM-DD format. This should be updated right before the final PR is made.
-date = 2021-11-11
+date = 2022-05-02
 
 [taxonomies]
 # Keep any areas that apply, removing ones that don't. Do not add new areas!
@@ -21,9 +21,9 @@ author = {name = "Sara McAllister", url = "https://saramcallister.github.io/" }
 # The committee specification is simply a list of strings.
 # However, you can also make an object with fields like in the author.
 committee = [
-#    {name = "Dimitrios Skarlatos", url = "https://www.cs.cmu.edu/~dskarlat/"},
-#    {name = "Justine Sherry", url = "https://www.justinesherry.com/"},
-#    {name = "Jack Kosaian", url = "https://jackkosaian.github.io/"},
+    {name = "Dimitrios Skarlatos", url = "https://www.cs.cmu.edu/~dskarlat/"},
+    {name = "Justine Sherry", url = "https://www.justinesherry.com/"},
+    {name = "Jack Kosaian", url = "https://jackkosaian.github.io/"},
 ]
 +++
 
