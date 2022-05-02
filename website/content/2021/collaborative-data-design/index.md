@@ -29,6 +29,10 @@ committee = [
 
 # Introduction: Collaborative Apps via CRDTs
 
+> An extended version of this post appears [on my personal site](https://mattweidner.com/2022/02/10/collaborative-data-design.html).
+
+<p></p><br />
+
 Suppose you're building a collaborative app, along the lines of Google Docs/Sheets/Slides, Figma, Notion, etc., but *without a central server*. One challenge you'll face is the actual collaboration: when one user changes the shared state, their changes need to show up for every other user. For example, if multiple users type at the same time in a text field, the result should reflect all of their changes and be consistent (identical for all users).
 
 [**Conflict-free Replicated Data Types (CRDTs)**](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type) provide a solution to this challenge. They are data structures that look like ordinary data structures (maps, sets, text strings, etc.), except that they are collaborative: when one user updates their copy of a CRDT, their changes automatically show up for everyone else. Each user sees their own changes immediately, while under the hood, the CRDT broadcasts a message describing the change to everyone else.  Other users see the change once they receive this message.
@@ -131,7 +135,7 @@ It's possible to work around this by "transforming" `i` to account for concurren
 
 List CRDTs use a different perspective from OT.  When you type a character in a text document, you probably don't think of its position as "index 17" or whatever; instead, its position is at a certain place within the existing text.
 
-"A certain place within the existing text" is vague, but at a minimum, it should be between the characters left and right of your insertion point ("on" and " table" in the example above)  Also, unlike an index, this intuitive position doesn't change if other users concurrently type earlier in the document; your new text should go between the same characters as before. That is, the position is *immutable*.
+"A certain place within the existing text" is vague, but at a minimum, it should be between the characters left and right of your insertion point ("on" and " table" in the example above)  Also, unlike an index, this intuitive position is *immutable*.
 
 This leads to the following implementation. The list's state is a Unique Set whose values are pairs `(p, x)`, where `x` is the actual value (e.g., a character), and `p` is a **unique immutable position** drawn from some abstract total order. The user-visible state of the list is the list of values `x` ordered by their positions `p`. Operations are implemented as:
 - `insert(i, x)`: The inserting user looks up the positions `pL`, `pR` of the values to the left and right (indices `i` and `i+1`), generates a unique new position `p` such that `pL < p < pR`, and calls `add((p, x))` on the Unique Set. 
@@ -142,8 +146,6 @@ Of course, we need a way to create the positions `p`. That's the hard part---in 
 The important lesson here is that we had to translate indices (the language of normal, non-CRDT lists) into unique immutable positions (what the user intuitively means when they say "insert here").  That leads to our second principle of CRDT design:
 
 <a name="principle-2"></a>**Principle 2. Express operations in terms of user intention---what the operation means to the user, intuitively. This might differ from the closest ordinary data type operation.**
-
-This principle works because users often have some idea what one operation should do in the face of concurrent operations. If you can capture that intuition, then the resulting operations won't conflict.
 
 ## Registers
 
@@ -185,7 +187,7 @@ One option is to accept this as the state, and present all conflicting values to
 In general, you can define the value getter to be an arbitrary deterministic function of the set of values.
 
 **Examples:**
-- If the values are colors, you can average their RGB coordinates. That seems like fine behavior for pixels in a collaborative whiteboard.
+- If the values are colors, you can average their RGB coordinates.
 
 <!--figure: illustration-->
 
@@ -239,14 +241,14 @@ We can likewise make a **list of CRDTs**.
 
 You can use the above composition techniques and basic CRDTs to design CRDTs for many collaborative apps. Choosing the exact structure, and how operations and user-visible state map onto that structure, is the main challenge.
 
-A good starting point is to design an ordinary (non-CRDT) data model, using ordinary objects, collections, etc., then convert it to a CRDT version. So variables become registers, objects become CRDT objects, lists become list CRDts, sets become Unique Sets or Add-Wins Sets, etc. You can then tweak the design as needed to accommodate extra operations or fix weird concurrent behaviors.
+A good starting point is to design an ordinary (non-CRDT) data model, using ordinary objects, collections, etc., then convert it to a CRDT version. So variables become registers, sets become Unique Sets or Add-Wins Sets, etc. You can then tweak the design as needed to accommodate extra operations or fix weird concurrent behaviors.
 
 To accommodate as many operations as possible while preserving user intention, I recommend:
 
 <a name="principle-4"></a>**Principle 4. Independent operations (in the user's mind) should act on independent state.**
 
 **Examples:**
-- As mentioned earlier, you can represent the position and size of an image in a collaborative slide editor by using separate registers for the left, top, width, and height. If you wanted, you could instead use a single register whose value is a tuple (left, top, width, height), but this would violate Principle 4. Indeed, then if one user moved the image while another resized it, one of their changes would overwrite the other, instead of both moving and resizing. <!--Likewise, it would be a mistake to replace (left, top, width, height) with (left, top, right, bottom) (this also violates [Principle 2](#principle-2)).-->
+<!-- - As mentioned earlier, you can represent the position and size of an image in a collaborative slide editor by using separate registers for the left, top, width, and height. If you wanted, you could instead use a single register whose value is a tuple (left, top, width, height), but this would violate Principle 4. Indeed, then if one user moved the image while another resized it, one of their changes would overwrite the other, instead of both moving and resizing. <!--Likewise, it would be a mistake to replace (left, top, width, height) with (left, top, right, bottom) (this also violates [Principle 2](#principle-2)).-->
 - Again in a collaborative slide editor, you might initially model the slide list as a list of slide CRDTs. However, this provides no way for users to move slides around in the list, e.g., swap the order of two slides. You could implement a move operation using cut-and-paste, but then slide edits concurrent to a move will be lost, even though they are intuitively independent operations.<br />
 <a name="list-with-move"></a>Following Principle 4, you should instead implement move operations by modifying some state independent of the slide itself. You can do this by replacing the *list* of slides with a *Unique Set* of objects `{ slide, positionReg }`, where `positionReg` is an LWW register indicating the position. To move a slide, you create a unique new position like in a list CRDT, then set the value of `positionReg` equal to that position. This construction gives the [**list-with-move**](https://doi.org/10.1145/3380787.3393677) CRDT.
 
@@ -414,7 +416,7 @@ I hope you've gained an understanding of how CRDTs work, plus perhaps a desire t
 - **Novel Operations**: Concurrent+causal for-each operations on a Unique Set or list.
 - **Whole Apps**: Spreadsheet, rich text, and pieces of various other apps.
 
-For more info, [crdt.tech](https://crdt.tech/) collects most CRDT resources in one place. For traditional CRDTs, the classic reference is [Shapiro et al. 2011](http://dx.doi.org/10.1007/978-3-642-24550-3_29), while [Preguiça 2018](http://arxiv.org/abs/1806.10254) gives a more modern overview.
+For more info, [crdt.tech](https://crdt.tech/) collects most CRDT resources in one place.
 
 I've also started putting these ideas into practice in a library, [Collabs](https://www.npmjs.com/package/@collabs/collabs). You can learn more about Collabs, and see how open-source collaborative apps might work in practice, in [my Strange Loop talk](https://www.youtube.com/watch?v=Exr0iY_D-vw).
 
