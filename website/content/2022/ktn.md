@@ -1,8 +1,8 @@
 +++
 # The title of your blogpost. No sub-titles are allowed, nor are line-breaks.
-title = "Zero-shot Transfer Learning on Heterogeneous Graphs via Knowledge Transfer Networks"
+title = "Zero-shot Transfer Learning within a Heterogeneous Graph via Knowledge Transfer Networks"
 # Date must be written in YYYY-MM-DD format. This should be updated right before the final PR is made.
-date = 2022-08-13
+date = 2022-10-04
 
 [taxonomies]
 # Keep any areas that apply, removing ones that don't. Do not add new areas!
@@ -33,59 +33,64 @@ committee = [
 </figcaption>
 </figure>
 
-Large technology companies commonly maintain large relational datasets representing a heterogeneous graph (HG) composed of multiple node and edge types. Figure 1 shows an e-commerce network presented as a heterogeneous graph with *product*, *user*, and *review* node types and *user-buy-product*, *user-write-review*, and *review-on-product* edge types. Heterogeneous graph neural networks (HGNNs) learn powerful features representing the complex multimodal structure of HGs, and thus have garnered huge attention across industries. However, many HG datasets from industrial applications suffer from label imbalance between node types. As there is no direct way to learn using labels rooted at different node types, HGNNs have been applied to only a few node types with abundant labels. In this work, we propose a zero-shot transfer learning module for HGNNs called a Knowledge Transfer Network (KTN) that transfers knowledge from label-abundant node types to zero-labeled node types through rich relational information given in the HG.
-KTN improves HGNN performance on zero-labeled node types by up to 340%.
+In this blog, we introduce *heterogeneous graphs* (HGs) that are composed of multiple types of nodes and edges and *heterogeneous graph neural networks (HGNNs)* that learn node embeddings representing each node's local structure on HGs. Then we introduce a *label imbalance* issue between different node types in real-world HGs that hampers wide applications of HGNNS, and how we overcome this issue using *Transfer Learning*. This blog targets people who have minimum knowledge on Graph Neural Networks. The original paper is published in NeurIPS 2022 and can be found at this [link](https://arxiv.org/abs/2203.02018).
 
-## What are heterogeneous graph neural networks?
-One of the most successful deep learning models combining graph information is graph neural networks (GNNs).
-GNNs complement each node embeddings with their neighboring node embeddings, assuming neighboring nodes are relevant, thus their information would help to improve a target node’s embedding.
-Heterogeneous graph neural networks (HGNNs) extend how GNNs work on homogeneous graphs by providing different modules for each node/edge type.
-At a high level, HGNNs learn each node's embeddings by 1) computing messages on each edge with *edge-type-specific* parameters, 2)aggregating the computed messages across different edge types, and 3) finally transforming the aggregated messages into the *node-type-specific* embedding space. Formally, for any node \\(j\\), the embedding of node \\(j\\) at the \\(l\\)-th HGNN layer is obtained with the following generic formulation:
+## What is a heterogeneous graph?
+Large technology companies commonly maintain large relational datasets representing a *heterogeneous graph* (HG) composed of multiple node and edge types. Figure 1 shows an e-commerce network presented as a HG with *product*, *user*, and *review* node types: each product selling on the e-commerce is presented as a node of the *product* type, while each user who buys products and writes reivews on the e-commerce becomes a user node, and each review written by a user becomes a *review*-typed node in the HG. And these three types of nodes are connected by different edge types including *user-buy-product*, *user-write-review*, and *review-on-product*: when a user purchases a product, the corresponding user and product nodes are connected by a *user-buy-product*-typed edge; likewise, when a user writes a review on a product, the corresponding user and review nodes are connected by a *user-write-review*-typed edge, while the corresponding review and product nodes are connected by a *review-on-product*-typed edge.
+
+HGs are commonly given with input node attributes that summarize each node's information. Input node attributes could have different modalities between different node types. For instance, images of products could be given as input node attributes for the product nodes, while review scores or texts could be given as input attributes to review nodes. Node labels are what we want to predict on each node (e.g., category of each product or category of each user is mostly interested in). Labels are commonly given only for a few nodes due to difficulty to annotate. HGNNs learn relationships between input node attributes and node labels on the given HG and predict labels for nodes whose labels are not given.
+
+
+## How do heterogeneous graph neural networks work?
+Given input node attributes and graph structure information, graph neural networks (GNNs) learns node embeddings that summarize the local graph around each node.
+GNNs first set each node's embeddings with the input node attributes then repeatedly update the node embeddings with their neighboring node embeddings, assuming neighboring nodes are relevant, thus their information would help to improve a target node’s embedding.
+At a high level, GNNs update each node's embeddings by 1) computing messages that summarize interation between the node and its neighboring nodes, 2) aggregating the computed messages from all neighbors, and 3) finally transforming the aggregated messages. Formally, for any node \\(j\\), the embedding of node \\(j\\) at the \\(l\\)-th GNN layer is obtained with the following generic formulation:
 $$
 \small
-h_j^{(l)} = \textbf{Transform}^{(l)}\left(\textbf{Aggregate}^{(l)}(\mathcal{E}(j))\right)~~~~~~~~~(1)
+h_j^{(l)} = \textbf{Transform}^{(l)}\left(\textbf{Aggregate}^{(l)}\left(\textbf{Message}^{(l)}(\mathcal{E}(j))\right)\right)~~~~~~~~~(1)
 $$
 where \\(\small\mathcal{E}(j)\\) denotes all the edges which connect to \\(j\\).
-Here we introduce the commonly-used versions of **Aggregate** and **Transform** for HGNNs.
-First, we define a linear **Message** function that computes a message on each edge with the connected nodes' information:
+Heterogeneous graph neural networks (HGNNs) extend how GNNs work on homogeneous graphs by specializing each operations for each node/edge type to encode the inherent multiplicity of modalities in HGs.
+Here we introduce the commonly-used versions of **Message**, **Aggregate**, and **Transform** operations for HGNNs.
+First, we define a linear **Message** function that computes a message on each edge with the connected nodes' information using *edge-type-specific* parameters:
 $$
 \small
 \textbf{Message}^{(l)}(i, j) = M_{\phi((i, j))}^{(l)}\cdot \left(h_i^{(l-1)} ||~~h_j^{(l-1)}\right)~~~~~~~~~(2)
 $$
-where \\(\small\phi((i, j))\\) denotes the type of the edge between nodes \\(i\\) and \\(j\\); and \\(\small M_{r}^{(l)}\\) are the message-passing parameters specific for each edge type \\(\small r\in\mathcal{R}\\) and each layer \\(l\\). Then defining \\(\small\mathcal{E_r}(j)\\) as the set of edges of type \\(r\\) pointing to node \\(j\\), the **Aggregate** function mean-pools messages by each edge type, then concatenates them:
+where \\(||\\) denotes concatenation; \\(\small\phi((i, j))\\) denotes the edge type between nodes \\(i\\) and \\(j\\); and \\(\small M_{r}^{(l)} \in \mathbb{R}^{(d \times 2d)}\\) are parameters specific for each edge type \\(r\in\mathcal{R}\\) in each HGNN layer with \\(d\\) denoting the embedding dimension. Then defining \\(\small\mathcal{E_r}(j)\\) as the set of edges of type \\(r\\) pointing to node \\(j\\), the **Aggregate** function mean-pools messages by each edge type, then concatenates them:
 $$
 \small
 \textbf{Aggregate}^{(l)}(\mathcal{E}(j)) = \underset{r\in\mathcal{R}}{||}\tfrac{1}{|\mathcal{E_r}(j)|}\sum_{e\in\mathcal{E_r}(j)}\textbf{Message}^{(l)}(e)~~~~~~~~~(3)
 $$
-Finally, **Transform** maps the message into a *node-type-specific latent space*:
+Finally, **Transform** transforms the message using *node-type-specific* paramters:
 $$
 \small
 \textbf{Transform}^{(l)}(j) = \alpha(W_{\tau(j)}^{(l)}\cdot\textbf{Aggregate}^{(l)}(\mathcal{E}(j)))~~~~~~~~~(4)
 $$
-where \\(\small\tau(j)\\) denotes the type of node \\(j\\); \\(\small W_{t}^{(l)}\\) are the transformation parameters specific for each node type \\(\small t\in\mathcal{T}\\) and each layer \\(l\\); and \\(\alpha\\) is a nonlinear function.
+where \\(\small\tau(j)\\) denotes the type of node \\(j\\); \\(\small W_{t}^{(l)} \in \mathbb{R}^{(d \times d)}\\) are parameters specific for each node type \\(\small t\in\mathcal{T}\\) in each HGNN layer; and \\(\alpha\\) is a nonlinear function.
 By stacking HGNN blocks for \\(L\\) layers, each node aggregates a larger proportion of nodes — with different types
 and relations — in the full graph, which generates highly contextualized node representations.
-The final node representations \\(h_i^{(L)}\\) are then fed into another model to perform downstream heterogeneous network tasks, such as node classification or link prediction.
-Note that HGNNs involve *node/edge-type-specific parameters,* \\(\small M_{r}^{(l)}\\) and \\(\small W_{t}^{(l)}\\) to exploit the inherent multiplicity of modalities in HGs.
+The final node representations \\(h_i^{(L)}\\) are then fed into a node classifier to predict node labels.
+During training, we compute losses using the predicted labels and true labels and back-propagate the gradients of the losses into HGNN's parameters, \\(\small M_{r}^{(l)}\\) and \\(\small W_{t}^{(l)}\\).
 
 ## Label scarcity issue on HGNNs
 
 A common issue in industrial applications of deep learning is label scarcity, and with their diverse node types, HGNNs are even more likely to face the challenge.
-For instance, publicly available content node types — such as those representing video, text, and image content — are abundantly labeled, whereas labels for other types — such as user or account nodes — may be not available due to privacy restrictions.
-This means that in most standard training settings, HGNN models can only learn to make good inferences for a few label-abundant node types and can usually not make any inferences for the remaining node types, given the absence of any labels for them.
+For instance, publicly available content node types are abundantly labeled, whereas labels for other types such as user or account nodes may be not available due to privacy restrictions.
+For instance, in the e-commerce network shown in Figure 1, labels of the product node types which denote categories each product node belongs to are easily attained (e.g., extract from the product description written by mechants), while labels of the user nodes which denotes categories each user is mostly interested in are hard to annotate (e.g., users do not want to share any information with the e-commerce company).
+This means that in most standard training settings, HGNN models can only learn to make good inferences for a few label-abundant node types (e.g., product nodes) and can usually not make any inferences for the remaining node types (e.g., user nodes), given the absence of any labels for them.
 
-The field of *transfer learning* targets this setting, seeking to transfer knowledge from a source domain with
-abundant labels to a target domain that lacks them.
-In this case, the target domain is the zero-labeled node type on a heterogeneous graph.
+*Transfer Learning* is a technique to improve the performance of a model on a target domain with insufficient labels by using the knowledge learned by the model from another related source domain with adequate labeled data.
+If we apply Transfer Learning on this case, the target domain would be the zero-labeled node type on a HG.
 Then what would be the source domain?
 
 ## Limitation of previous graph-to-graph transfer learning approach
 
-Previous works commonly set the source domain for nodes of a zero-labeled type as *nodes of the same type from a different HG (i.e., graph-to-graph transfer learning)*, assuming nodes of the same type on another HG have abundant labels.
+Previous works commonly set the source domain for nodes of the zero-labeled node type as *nodes of the same type from a different HG (i.e., graph-to-graph transfer learning)*, assuming nodes of the same type on another HG have abundant labels.
 However, these approaches are not applicable in many real-world scenarios for three reasons.
-*First,* any external HG that could be used in a graph-to-graph transfer learning setting would almost surely be proprietary, thus hard to get access.
+*First,* any external HG that could be used in a graph-to-graph transfer learning setting would almost surely be proprietary, thus hard to get access to.
 *Second,* even if practitioners could obtain access to an external HG, it is unlikely the distribution of that source HG would match their target HG well enough to apply transfer learning;
-for instance, purchasing patterns of *user* nodes in e-commerce networks would less likely follow similar distributions with following patterns of *user* nodes in social networks.
+for instance, product-purchasing patterns of *user* nodes in e-commerce networks would less likely follow similar distributions with account-following patterns of *user* nodes in social networks.
 *Finally,* node types suffering label scarcity are likely to suffer the same issue on other HGs (e.g., privacy issues on user nodes).
 
 ## Zero-shot cross-type transfer learning on a heterogeneous graph
@@ -95,13 +100,13 @@ Here, we shed light on a more practical source domain, *other node types with ab
 **Problem Definition.**
 Given a heterogeneous graph with node types \\(\{\mathbf{s}, \mathbf{t}, \cdots \}\\) with abundant labels for source type \\(\mathbf{s}\\) but no labels for target type \\(\mathbf{t}\\), can we train HGNNs using type \\(\mathbf{s}\\)'s labels to infer the type \\(\mathbf{t}\\)'s labels?
 
-Instead of using additional HGs, we transfer knowledge within a single HG (assumed to be fully owned by the practitioners) across different types of nodes (possibly with different modalities).
-This new problem definition utilizes the shared context between source and target node types hidden in the HG.
-For instance, in the e-commerce network, labels of *user* nodes can be strongly correlated with *purchasing/reviewing* patterns that are encoded in the cross-edges between *user* nodes and *product/review* nodes.
+Instead of using additional HGs, we transfer knowledge within a single HG (assumed to be fully owned by the practitioners) across different types of nodes.
+This new problem definition utilizes the shared context between source and target node types encoded in the HG.
+For instance, in the e-commerce network, labels of *user* nodes (e.g., interests of user nodes) can be strongly correlated with *purchasing/reviewing* patterns that are encoded in the cross-edges between *user* nodes and *product/review* nodes.
 
 ## Why is this problem hard to solve?
 
-This problem seems very trivial at first glance: just re-use an HGNN model pre-trained on the source nodes for target node inference, given that both source and target nodes exist in the same HG.
+This problem seems solvable by a simple approach at first glance: just re-use an HGNN model pre-trained on the source nodes for target node inference, given that both source and target nodes exist in the same HG.
 However, HGNNs have distinct parameter sets for each node and edge types (\\(\small W_{t}^{(l)}\\) and \\(\small M_{r}^{(l)}\\) in Equations 2, 3, 4).
 These facts cause HGNNs to learn entirely *different feature extractors for different node types*.
 
@@ -201,10 +206,19 @@ Finally, we pass the transformed target embeddings \\(\small H_{t}^{(L)}\circ T_
 
 ## Experimental results
 
+
 <figure>
-<img src="./oag-experiment.png" alt="experiment on oag" width="800"/>
+<img src="./da.png" width="700"/>
 <figcaption>
-Table 1. Zero-shot transfer learning on Open Academic Graph: *gain* column shows the relative gain of our method over using no transfer learning (*Base* column). o.o.m denotes out-of-memory errors.
+Figure 3. Zero-shot transfer learning on Open Academic Graph: *gain* column shows the relative gain of our method over using no transfer learning (*Base* column). o.o.m denotes out-of-memory errors.
+</figcaption>
+</figure>
+
+
+<figure>
+<img src="./generality.png" alt="experiment on oag" width="300"/>
+<figcaption>
+Figure 4. Zero-shot transfer learning on Open Academic Graph: *gain* column shows the relative gain of our method over using no transfer learning (*Base* column). o.o.m denotes out-of-memory errors.
 </figcaption>
 </figure>
 
