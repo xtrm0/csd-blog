@@ -27,13 +27,13 @@ committee = [
 ]
 +++
 
+In this blog, we introduce *heterogeneous graphs* (HGs) that are composed of multiple types of nodes and edges and *heterogeneous graph neural networks (HGNNs)* that learn node embeddings representing each node's local structure on HGs. Then we introduce a *label imbalance* issue between different node types in real-world HGs that hampers wide applications of HGNNS, and how we overcome this issue using *Transfer Learning*. This blog targets people who have minimum knowledge on Graph Neural Networks. The original paper is published in NeurIPS 2022 and can be found at this [link](https://arxiv.org/abs/2203.02018).
+
 <figure>
 <img src="./e-commerce.png" alt="e-commerce heterogeneous graph" width="400"/>
 <figcaption>Figure 1. E-commerce heterogeneous graph: Can we transfer knowledge from label-abundant node types (e.g., products) to zero-labeled node types (e.g., users) through rich relational information given in a heterogeneous graph?
 </figcaption>
 </figure>
-
-In this blog, we introduce *heterogeneous graphs* (HGs) that are composed of multiple types of nodes and edges and *heterogeneous graph neural networks (HGNNs)* that learn node embeddings representing each node's local structure on HGs. Then we introduce a *label imbalance* issue between different node types in real-world HGs that hampers wide applications of HGNNS, and how we overcome this issue using *Transfer Learning*. This blog targets people who have minimum knowledge on Graph Neural Networks. The original paper is published in NeurIPS 2022 and can be found at this [link](https://arxiv.org/abs/2203.02018).
 
 ## What is a heterogeneous graph?
 Large technology companies commonly maintain large relational datasets representing a *heterogeneous graph* (HG) composed of multiple node and edge types. Figure 1 shows an e-commerce network presented as a HG with *product*, *user*, and *review* node types: each product selling on the e-commerce is presented as a node of the *product* type, while each user who buys products and writes reivews on the e-commerce becomes a user node, and each review written by a user becomes a *review*-typed node in the HG. And these three types of nodes are connected by different edge types including *user-buy-product*, *user-write-review*, and *review-on-product*: when a user purchases a product, the corresponding user and product nodes are connected by a *user-buy-product*-typed edge; likewise, when a user writes a review on a product, the corresponding user and review nodes are connected by a *user-write-review*-typed edge, while the corresponding review and product nodes are connected by a *review-on-product*-typed edge.
@@ -79,10 +79,16 @@ A common issue in industrial applications of deep learning is label scarcity, an
 For instance, publicly available content node types are abundantly labeled, whereas labels for other types such as user or account nodes may be not available due to privacy restrictions.
 For instance, in the e-commerce network shown in Figure 1, labels of the product node types which denote categories each product node belongs to are easily attained (e.g., extract from the product description written by mechants), while labels of the user nodes which denotes categories each user is mostly interested in are hard to annotate (e.g., users do not want to share any information with the e-commerce company).
 This means that in most standard training settings, HGNN models can only learn to make good inferences for a few label-abundant node types (e.g., product nodes) and can usually not make any inferences for the remaining node types (e.g., user nodes), given the absence of any labels for them.
-
 *Transfer Learning* is a technique to improve the performance of a model on a target domain with insufficient labels by using the knowledge learned by the model from another related source domain with adequate labeled data.
 If we apply Transfer Learning on this case, the target domain would be the zero-labeled node type on a HG.
 Then what would be the source domain?
+
+<center>
+<figure>
+<img src="./practical.png" width="300"/>
+<figcaption>Figure 2. Is graph-to-graph transfer learning a practical solution for real-world scenarios?</figcaption>
+</figure>
+</center>
 
 ## Limitation of previous graph-to-graph transfer learning approach
 
@@ -104,6 +110,7 @@ Instead of using additional HGs, we transfer knowledge within a single HG (assum
 This new problem definition utilizes the shared context between source and target node types encoded in the HG.
 For instance, in the e-commerce network, labels of *user* nodes (e.g., interests of user nodes) can be strongly correlated with *purchasing/reviewing* patterns that are encoded in the cross-edges between *user* nodes and *product/review* nodes.
 
+<!--
 ## Why is this problem hard to solve?
 
 This problem seems solvable by a simple approach at first glance: just re-use an HGNN model pre-trained on the source nodes for target node inference, given that both source and target nodes exist in the same HG.
@@ -131,7 +138,6 @@ In a 2-layer HGNN, this creates unique gradient backpropagation paths between th
 HGNNs have different update equations for each node type during training and project each type's node features into different latent spaces.
 Therefore HGNNs pre-trained on source node types will fail to perform well on inference tasks for target node types.
 
-<!--
 ### Consequences of different feature extractors for each node type in HGNNs
 <figure>
 <img src="./toy-hg-experiment.png" alt="experiment on toy heterogeneous graph" width="1300"/>
@@ -151,23 +157,27 @@ This case study shows that even when an HGNN is trained on a relatively simple, 
 -->
 
 
-## Motivation: Relationship between feature extractors
+## Motivation: Relationship between embeddings of different node types
 
-We show that an HGNN model provides different feature extractors for each node type.
-However, still, those feature extractors are built inside one HGNN model and interchange intermediate feature embeddings with each other (see \\(\small h_{1}^{(l)}\\) of node type \\(s\\) is computed using \\(\small h_{2}^{(l-1)}\\) of node type \\(t\\) in Equation 5).
-What is the relationship between those intertwining feature extractors?
+HGNNs output the final node embeddings \\(\small h_{s}^{(L)}\\) for nodes of type-\\(s\\), then feed the embeddings into a classifier to compute losses with node type \\(s\\)'s labels.
+In other words, the classifier is trained to predict labels on the source domain.
+If we want to reuse the classifer to predict labels for node type \\(t\\), we need to map type \\(t\\)'s node embeddings \\(\small h_{t}^{(L)}\\) into the source domain first, then feed the mapped embeddings to the classifier.
+How can we find the mapping matrix from the target domain to the source domain?
+First of all, what is the relationship between \\(\small h_{s}^{(L)}\\) and \\(\small h_{t}^{(L)}\\)?
 
 <figure>
 <img src="./motivation.png" alt="motivation" width="250"/>
 <figcaption>
-Figure 3. HGNN's computation graph: Output of each feature extractor (i.e., last layer embeddings) can be mathematically presented by each other using the previous layer embeddings as connecting points.
+Figure 3. HGNN's computation graph: the last layer embeddings (i.e., input to a classifier) of different node types can be mathematically presented by each other using the previous layer embeddings as connecting points.
 </figcaption>
 </figure>
 
-Defining \\(\small H_t^{(l)}\\) as the hidden embedding matrix of \\(t\\)-type nodes at the \\(l\\)-th layer, Figure 4 shows how three node types \\((s, t, x)\\) interchange intermediate feature embeddings in the last three hidden layers in HGNNs.
-Both \\(\small H_s^{(L)}\\) and \\(\small H_t^{(L)}\\) are computed using the previous layer’s embeddings \\(\small H_s^{(L−1)} , H_t^{(L−1)}, H_x^{(L−1)}\\) at the \\(\small L\\)-th HGNN layer.
-In other words, \\(\small H_s^{(L)}\\) and \\(\small H_t^{(L)}\\), outputs of each feature extractors can be mathematically presented by each other using the \\(\small(L−1)\\)-th layer embeddings as connecting points.
-Based on this observation, we derive a strict transformation between feature extractors of node type \\(s\\) and \\(t\\) as follows:
+In Equation 1, HGNNs update each node embeddings using neighboring node embeddings from the previous layer including not only the same type of nodes, but also any type of nodes connected with.
+Figure 3 abstracts this interaction among node embeddings of different types on a HG composed of three node types \\((s, t, x)\\).
+Defining \\(\small H_t^{(l)}\\) as a node embedding matrix (i.e., stacked node embeddings) of all \\(t\\)-type nodes at the \\(l\\)-th layer, both \\(\small H_s^{(L)}\\) and \\(\small H_t^{(L)}\\) are computed using the previous layer’s embeddings \\(\small H_s^{(L−1)} , H_t^{(L−1)}, H_x^{(L−1)}\\) at the \\(\small L\\)-th HGNN layer.
+(Note that connections among individual nodes are encoded in adjacency matrices and are omitted in Figure 3 for simplicity)
+In other words, \\(\small H_s^{(L)}\\) and \\(\small H_t^{(L)}\\) can be mathematically presented by each other using the \\(\small(L−1)\\)-th layer embeddings as connecting points.
+Based on this observation, we derive a strict transformation between embeddings of node type \\(s\\) and \\(t\\) as follows:
 
 <figure>
 <img src="./theorem.png" alt="motivation" width="600"/>
@@ -186,8 +196,7 @@ To examine the implications, we run the same experiment as described in Figure 3
 
 ## **KTN**: Trainable Cross-Type Transfer Learning for HGNNs
 
-Note that Equation 8 in Theorem 1 has a similar form to a *single-layer graph convolutional network* with a deterministic transformation matrix (\\(Q_{ts}^{\ast}\\)) and a combination of adjacency matrices directing from target node type \\(t\\) to source node type \\(s\\) (\\(A_{ts}^\ast\\)).
-We learn the mapping function \\(Q_{ts}^{\ast}\\) by modeling Equation 8 as a trainable graph convolutional network, named the Knowledge Transfer Network, \\(\small t_{KTN}(\cdot)\\).
+We learn the mapping function \\(Q_{ts}^{\ast}\\) by modeling Equation 8 as a neural network, named the Knowledge Transfer Network, \\(\small t_{KTN}(\cdot)\\).
 KTN replaces \\(Q_{ts}^{\ast}\\) and \\(A_{ts}^\ast\\) in Equation 8 as follows:
 $$
 \small
@@ -208,23 +217,33 @@ Finally, we pass the transformed target embeddings \\(\small H_{t}^{(L)}\circ T_
 
 
 <figure>
-<img src="./da.png" width="700"/>
+<img src="./da.png" width="600"/>
 <figcaption>
-Figure 3. Zero-shot transfer learning on Open Academic Graph: *gain* column shows the relative gain of our method over using no transfer learning (*Base* column). o.o.m denotes out-of-memory errors.
+Figure 4. Zero-shot transfer learning on Open Academic Graph and Pubmed datasets.
 </figcaption>
 </figure>
 
+To examine the effectiveness of our proposed KTN, we run 18 different zero-shot transfer learning tasks on two public heterogeneous graph, Open Academic Graph composed of five node types and ten edge types and Pubmed composed of four node types and ten edge types.
+We compare KTN with two MMD-based domain adaptation methods (DAN, JAN), three adversarial domain adaptation methods (DANN, CDAN, CDAN-E), one optimal transport-based method (WDGRL), and two traditional graph mining methods (LP and EP).
+In Figure 4, our proposed method KTN consistently outperforms all baselines on all tasks by up to 73.3% higher in MRR. When we compare with the base accuracy using the model pretrained on the source domain without any transfer learning (blue bar, *Source*), the results are even more impressive. We see our method KTN provides relative gains of up to 340% higher MRR without using any labels from the target domain.
 
 <figure>
-<img src="./generality.png" alt="experiment on oag" width="300"/>
+<img src="./generality.png" alt="experiment on oag" width="450"/>
 <figcaption>
-Figure 4. Zero-shot transfer learning on Open Academic Graph: *gain* column shows the relative gain of our method over using no transfer learning (*Base* column). o.o.m denotes out-of-memory errors.
+Figure 5. Generality of KTN: KTN can be applied to 6 different HGNN models and improve their zero-shot performance on target domains.
 </figcaption>
 </figure>
 
-To examine the effectiveness of our proposed KTN, we run 8 different zero-shot transfer learning tasks on a public heterogeneous graph, Open Academic Graph, composed of five node types and ten edge types.
-We compare KTN with two MMD-based domain adaptation methods (DAN, JAN), three adversarial domain adaptation methods (DANN, CDAN, CDAN-E), one optimal transport-based method (WDGRL), and two traditional graph mining methods (LP and EP).
-In Table 1, our proposed method KTN consistently outperforms all baselines on all tasks by up to 73.3% higher in MRR. When we compare with the base accuracy using the model pretrained on the source domain without any transfer learning (3rd column, *Base*), the results are even more impressive. We see our method KTN provides relative gains of up to 340% higher MRR without using any labels from the target domain. These results show the clear effectiveness of KTN on zero-shot transfer learning tasks on a heterogeneous graph.
+Figure 5 shows generality of KTN.
+KTN can be applied almost all HGNN models who have node/edge type-specific parameters and improve their zero-shot performance on target domains.
+These results show the clear effectiveness of KTN on zero-shot transfer learning tasks on a heterogeneous graph.
+
+<center>
+<figure>
+<img src="./practical.png" width="300"/>
+<figcaption>Figure 2. Is graph-to-graph transfer learning a practical solution for real-world scenarios?</figcaption>
+</figure>
+</center>
 
 ## Conclusion
 
