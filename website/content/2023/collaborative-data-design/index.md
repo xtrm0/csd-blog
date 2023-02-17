@@ -1,8 +1,8 @@
 +++
 # The title of your blogpost. No sub-titles are allowed, nor are line-breaks.
 title = "Designing Data Structures for Collaborative Apps"
-# Date must be written in YYYY-MM-DD format. This should be updated right before the final PR is made.  TODO
-date = 2021-11-15
+# Date must be written in YYYY-MM-DD format. This should be updated right before the final PR is made.
+date = 2023-02-17
 
 [taxonomies]
 # Keep any areas that apply, removing ones that don't. Do not add new areas!
