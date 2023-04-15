@@ -64,23 +64,20 @@ What if we want to evaluate the model's robustness on a stricter level than aver
 
 ## An intermediate robustness metric
 
-We'll now go into the details of how we formulate an intermediate robustness metric. We start by observing that we can naturally generalize average-case and worst-case robustness under one framework. Mathematically, this just involves taking the \\( q \\)-norm of the loss function over the perturbation distribution, where the loss just measures how well the model performs on the perturbed data. By setting \\( q=1 \\), this just results in average-case robustness, whereas by setting \\( q = \infty \\) this results in worst-case robustness. Then, any value of \\( q \\) between \\( 1 \\) and \\( \infty \\) results in *intermediate* robustness. This is more formally written below:
+We'll now go into the details of how we formulate an intermediate robustness metric. We start by observing that we can naturally generalize average-case and worst-case robustness under one framework. To show this, we will make use of the mathematical definition of an \\( L^p \\)-norm of a function \\( f \\) on a measure space \\( X \\): \\( ||f||_p = (\int_X |f|^p )^{(1/p)} \\). However, to differentiate this from the use of \\( \ell_p \\)-norm balls as perturbation sets in adversarial robustness, we will from here on out refer this definition as a \\(q \\)-norm of a function. Ultimately, average and worst-case robustness can be generalized by taking the \\( q \\)-norm of the loss function over the perturbation distribution, where the loss just measures how well the model performs on the perturbed data. The setting of \\( q=1 \\) results in average-case robustness, whereas the setting of \\( q = \infty \\) results in worst-case robustness, because by definition the \\( L^\infty \\)-norm is given by the pointwise maximum of a function. Then, any value of \\( q \\) between \\( 1 \\) and \\( \infty \\) results in *intermediate* robustness. This is more formally written below:
 
-> Define a neural network \\( h \\) with parameters \\( \theta \\), and a loss function \\( \ell \\) that measures how different the model predictions are from the true label \\( y \\) given an input \\( x \\). Consider we are interested in measuring the robustness of this model to perturbations \\( \delta \\) from some perturbation distribution with density \\( \mu \\). Now consider the following expectation over the functional \\( \ell_q\\) or \\( q \\)-norm[^1] of the loss according to this perturbation density,
+> Define a neural network \\( h \\) with parameters \\( \theta \\), and a loss function \\( \ell \\) that measures how different the model predictions are from the true label \\( y \\) given an input \\( x \\). Consider we are interested in measuring the robustness of this model to perturbations \\( \delta \\) from some perturbation distribution with density \\( \mu \\). Now consider the following expectation over the \\( q \\)-norm of the loss according to this perturbation density,
 $$ \mathbf{E}\_{x, y \sim \mathcal{D}} \Big[ ||\ell(h\_\theta(x+\delta), y)||\_{\mu, q} \Big], $$
-where the \\( q \\)-norm of the loss with perturbation density \\( \mu \\) is defined as follows:
+where the \\( q \\)-norm of the loss with perturbation density \\( \mu \\) is the following:
 $$ ||\ell(h\_\theta(x+\delta), y)||\_{\mu, q} = \mathbf{E}\_{\delta \sim \mu} [|\ell(h\_\theta(x+\delta), y)|^q]^{1/q} = \Big( \int |\ell(h\_\theta(x+\delta), y)|^q \mu(\delta)d\delta) \Big)^{1/q}.$$
 Assuming a smooth, non-negative loss function, this expectation corresponds to the expected loss on random perturbations (average-case) when \\( q = 1 \\), 
 $$ || \ell(h\_\theta(x+\delta), y) ||\_{\mu, 1} = \mathbf{E}\_{\delta \sim \mu} [\ell(h\_\theta(x+\delta), y)], $$
 and the expected maximum loss over all possible perturbations (worst-case) when \\( q = \infty \\), 
-$$ || \ell(h\_\theta(x+\delta), y) ||\_{\mu, \infty} = \text{max}\_{\delta \in \text{Supp}(\mu)}[\ell(h\_\theta(x+\delta), y)],$$
-with the \\( \ell_\infty \\)-norm being the limit of the \\( \ell_q \\)-norm as \\( q  \rightarrow \infty \\). 
+$$ || \ell(h\_\theta(x+\delta), y) ||\_{\mu, \infty} = \text{max}\_{\delta \in \text{Supp}(\mu)}[\ell(h\_\theta(x+\delta), y)].$$
 
 &nbsp;
 
-Intuitively, as we increase \\( q \\), more emphasis will be placed on high loss values, as the losses become more strongly "peaked" due to the exponent of \\( q \\). And so by increasing \\(q \\) from \\( 1 \\) to \\( \infty \\), we enable a full spectrum of intermediate robustness measurements that are increasingly strict by placing more weight on high loss values. This formulation allows us to evaluate a model's robustness in a wide range between the two extremes of average and worst case performance. 
-
-[^1] Note that this is typically called the \\( \ell_p \\) or \\( p \\)-norm or rather than the \\( q \\)-norm, however we wanted to differentiate between the common use of \\( \ell_p \\) -norm balls as perturbation regions in adversarial robustness studies.
+Intuitively, as we increase \\( q \\), more emphasis will be placed on high loss values, as the losses become more strongly "peaked" due to the exponent of \\( q \\). And so by increasing \\(q \\) from \\( 1 \\) to \\( \infty \\), we enable a full spectrum of intermediate robustness measurements that are increasingly strict by placing more weight on high loss values. This formulation allows us to evaluate a model's robustness in a wide range between the two extremes of average and worst case performance.
 
 ## Approximating the metric using path sampling
 
