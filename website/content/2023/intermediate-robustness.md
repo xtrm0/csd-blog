@@ -2,7 +2,7 @@
 # The title of your blogpost. No sub-titles are allowed, nor are line-breaks.
 title = "Robustness between the worst and average case"
 # Date must be written in YYYY-MM-DD format. This should be updated right before the final PR is made.
-date = 2023-01-31
+date = 2023-04-21
 
 [taxonomies]
 # Keep any areas that apply, removing ones that don't. Do not add new areas!
@@ -21,9 +21,9 @@ author = {name = "Leslie Rice", url = "https://leslierice1.github.io/" }
 # The committee specification is simply a list of strings.
 # However, you can also make an object with fields like in the author.
 committee = [
-    "TODO",
-    "TODO",
-    {name = "Harry Q. Bovik", url = "http://www.cs.cmu.edu/~bovik/"},
+    {name = "Sara McAllister", url = "https://saramcallister.github.io/"},
+    {name = "Weina Wang", url = "http://www.cs.cmu.edu/~weinaw/"},
+    {name = "Aditi Raghunathan", url = "https://www.cs.cmu.edu/~aditirag/"},
 ]
 +++
 As machine learning systems become increasingly implemented in safety-critical applications, such as autonomous driving and healthcare, we need to ensure these systems are reliable and trustworthy. For example, we might wish to determine whether a car's camera-based autopilot system can correctly classify the color of the light even in the presence of severe weather conditions, such as snow. Consider that the average snowy day looks something like the following:
@@ -98,8 +98,6 @@ As we continue to increase the value of \\( q \\), as shown in the plot below fo
 <img src=./integral3.png  width="400">
 
 Translating this back to our integral of interest, when the perturbation density is concentrated in a region with low loss values, the Monte Carlo estimator will be less capable of producing an accurate approximation of the integral when we want to evaluate intermediate robustness for larger values of \\( q \\).
-
-<!-- > $$ \hat{Z}\_\text{Monte Carlo} := \Big( \frac{1}{m} \sum\_{i=1}^m \ell \big( h\_\theta(x+\delta^{(i)}), y \big)^q \Big)^{1/q}$$ -->
 
 ### Path sampling estimator
 
