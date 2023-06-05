@@ -2,14 +2,14 @@
 # The title of your blogpost. No sub-titles are allowed, nor are line-breaks.
 title = "The Quantum Physicist's Method of Resource Analysis"
 # Date must be written in YYYY-MM-DD format. This should be updated right before the final PR is made.
-date = 2022-01-31
+date = 2023-06-06
 
 [taxonomies]
 # Keep any areas that apply, removing ones that don't. Do not add new areas!
 areas = ["Programming Languages"]
 # Tags can be set to a collection of a few keywords specific to your blogpost.
 # Consider these similar to keywords specified for a research paper.
-tags = ["quantum-physicists-method", "physicists-method", "resource-analysis", 
+tags = ["cost", "physicists-method", "resource-analysis", 
 "amortized", "AARA", "resource-tunneling", "worldviews", "program-analysis"]
 
 [extra]
@@ -22,9 +22,9 @@ author = {name = "David M Kahn", url = "https://www.cs.cmu.edu/~davidkah/" }
 # The committee specification is simply a list of strings.
 # However, you can also make an object with fields like in the author.
 committee = [
-    "Committee Member 1's Full Name",
-    "Committee Member 2's Full Name",
-    {name = "Harry Q. Bovik", url = "http://www.cs.cmu.edu/~bovik/"},
+    "Daniel Sleator",
+    "Frank Pfenning",
+    "Siva Somayyajula",
 ]
 +++
 
@@ -385,11 +385,11 @@ everywhere[^whole]
 
 Given these properties, one can prove the following key theorem:
 
-> 
+
 > Theorem: \\(max_j\phi_j\\) is a suitable definition
 > of \\(\Phi\\) for the classical physicist's method
->
 
+<p></p>
 Indeed, the first property meets the bulk of the requirements for a valid
 potential function, and the second property ensures that the max potential
 is always classically valid.
@@ -456,7 +456,7 @@ we wanted assigned.
 And so, with worldviews in hand, we can salvage the niceness of locality by wrapping a bunch of local accountings
 together and letting them make each other more flexible. From such an accounting we can
 reconstruct a potential function that satisfies the standard framework for 
-amortized analysis. This
+amortized analysis, just as our new theorem ensures. This
 leaves us with a program analysis built off the physicist's method that can give many tighter
 bounds than its predecessors.
 
