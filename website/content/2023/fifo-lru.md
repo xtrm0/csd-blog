@@ -17,41 +17,41 @@ committee = [
 
 > **TL;DR:** 
 Historically FIFO-based algorithms are thought to be less efficient (having higher miss ratios) than LRU-based algorithms.
-In this blog, we introduce two techniques, **lazy promotion**, which promotes objects only at eviction time, and **quick demotion**, which removes most new objects quickly. We will show that
+In this blog, we introduce two techniques, **lazy promotion**, which promotes objects only at eviction time, and **quick demotion**, which evicts most new objects quickly. We will show that
 > * Conventional-wisdom-suggested "weak LRUs", e.g., FIFO-Reinsertion, is actually more efficient (having lower miss ratios) than LRU;
-> * Simply evicting most new objects can improve state-of-the-art algorithm's efficiency.
-> * Eviction algorithms can be designed like building LEGOs by adding **lazy promotion** and **quick demotion** on top of FIFO.
+> * Simply evicting most new objects quickly can improve the state-of-the-art algorithm's efficiency.
+> * Eviction algorithms can be designed like building with LEGOs by adding **lazy promotion** and **quick demotion** on top of FIFO.
 
 
 ## Introduction
 Caching is a well-known and widely deployed technique to speed up data access, reduce repeated computation and data transfer. 
 A core component of a cache is the eviction algorithm, which chooses the objects stored in the limited cache space.
-Two metrics describe the performance of an eviction algorithm: efficiency measured by the miss ratio and throughput measured by the number of requests served per second.
+Two metrics describe the performance of an eviction algorithm: efficiency measured by the miss ratio and throughput measured by the number of requests served that can be served per second.
 
 The study of cache eviction algorithms has a long history, with a majority of the work centered around LRU (that is, to evict the least-recently-used object).
-LRU maintains a doubly-linked list, promoting objects to the head of the list upon cache hits and evicting the object at the tail of the list when needed.
-Belady and others found that memory access patterns often exhibit temporal locality --- “the most recently used pages were most likely to be reused in the immediate future”. Thus, LRU using *recency* to promote objects was found to be better than FIFO.
+Generally, LRU maintains a doubly-linked list, promoting objects to the head of the list upon cache hits and evicting the object at the tail of the list when needed.
+[Belady and others found](https://dl.acm.org/doi/10.1145/3399709) that memory access patterns often exhibit temporal locality --- “the most recently used pages were most likely to be reused in the immediate future”. Thus, LRU using *recency* to promote objects was found to be better than FIFO.
 
 Most eviction algorithms designed to achieve high efficiency start from LRU.
-For example, many algorithms, such as ARC, SLRU, 2Q, MQ, and multi-generational LRU, use multiple LRU queues to separate hot and cold objects. Some algorithms, e.g., LIRS and LIRS2, maintain an LRU queue but use different metrics to promote objects. While other algorithms, e.g., LRFU, EE-LRU, LeCaR, and CACHEUS, augment LRU's recency with different metrics. In addition, many recent works, e.g., Talus, improve LRU's ability to handle scan and loop requests.
+For example, many algorithms, such as [ARC](https://www.usenix.org/conference/fast-03/arc-self-tuning-low-overhead-replacement-cache), [SLRU](https://research.facebook.com/publications/an-analysis-of-facebook-photo-caching/), [2Q](https://www.vldb.org/conf/1994/P439.PDF), [MQ](https://www.usenix.org/legacy/events/usenix01/full_papers/zhou/zhou.pdf), and [multi-generational LRU](https://lwn.net/Articles/856931/), use multiple LRU queues to separate hot and cold objects. Some algorithms, e.g., [LIRS](https://dl.acm.org/doi/abs/10.1145/511399.511340?casa_token=x3My6rber5UAAAAA%3A7Gbpkgt2k6RMf95GUwvxrsY0-R-q5EpEN_uXRAfF4loxK2vo9yFtFh6Vo5R-30Vlkv1_3BtwnJiomlw), maintain an LRU queue but use different metrics to promote objects. While other algorithms, e.g., [LRFU](https://www.computer.org/csdl/journal/tc/2001/12/t1352/13rRUxBJhES), [EE-LRU](https://dl.acm.org/doi/pdf/10.1145/301464.301486), [LeCaR](https://www.usenix.org/system/files/conference/hotstorage18/hotstorage18-paper-vietri.pdf), and [CACHEUS](https://www.usenix.org/system/files/fast21-rodriguez.pdf), augment LRU's recency with different metrics. In addition, many recent works, e.g., [Talus](https://ieeexplore.ieee.org/abstract/document/7056022), improve LRU's ability to handle scan and loop requests.
 
-Besides efficiency, there have been fruitful studies on enhancing the cache's throughput performance and thread scalability. Each cache hit in LRU promotes an object to the head of the queue, which requires updating at least six pointers guarded by locks.
+Besides efficiency (miss ratio), there have been fruitful studies on enhancing the cache's execution performance and thread scalability. Each cache hit in LRU promotes an object to the head of the queue, which requires updating at least six pointers guarded by locks.
 These overheads are not acceptable in many deployments that need high performance.
 Thus, performance-centric systems often use FIFO-based algorithms to avoid LRU's overheads.
 For example, FIFO-Reinsertion and variants of CLOCK have been developed, which serve as LRU approximations.
 *It is often perceived that these algorithms trade miss ratio for better throughput and scalability.*
 
-In this blog, I am going to show that FIFO is in-fact better than LRU not only because of higher throughput, more scalable, but also more efficient and effective (having lower miss ratios).
+In this blog, I am going to show that FIFO is in-fact better than LRU not only because of higher throughput, better scalability, but also because of improved effectiveness (having lower miss ratios).
 
 
 ## Why FIFO and What it needs
 FIFO has many benefits over LRU. 
-For example, FIFO has *less metadata* and requires no metadata update on each cache hit, and thus is *faster and more scalable* than LRU. In contrast, LRU requires updating six pointers on each cache hit, which is not friendly for modern computer architecture due to random memory accesses. Moreover, FIFO is always the first choice when implementing a flash cache because it does not incur write amplification. Although FIFO has throughput and scalability benefits, it is common wisdom that FIFO is less effective (having higher miss ratio) than LRU.
+For example, FIFO has *less metadata* and requires no metadata update on each cache hit, and thus is *faster and more scalable* than LRU. In contrast, LRU requires updating six pointers on each cache hit, which is not friendly for modern computer architecture due to random memory accesses. Moreover, FIFO is always the first choice when implementing a flash cache because it does not incur write amplification. Although FIFO has throughput and scalability benefits, it is conventional wisdom that FIFO is less effective (having higher miss ratio) than LRU.
 
 
 <p align="center">
 <figure class="image"><img src="cacheAbs.svg" alt="A cache abstraction" style="width:80%; display: block; margin-left: auto; margin-right: auto;">
-<figcaption>A cache can be viewed as a logically ordered queue with four operations: insertion, removal, promotion and demotion. Most eviction algorithms are promotion algorithms. </figcaption>
+<figcaption>A cache can be viewed as a logically ordered queue with four operations: insertion, removal, promotion and demotion. Most eviction algorithms can be viewed as promotion algorithms because they focus on how to promote objects. </figcaption>
 </figure>
 </p>
 
@@ -65,7 +65,7 @@ Objects in the cache can be compared and ordered based on some metric (e.g., tim
 
 
 We observe that most eviction algorithms use <span style="font-family:monaco;">promotion</span> to update the ordering between objects.
-For example, all the LRU-based algorithms promote objects to the head of the queue on cache hits, which we call <span style="font-family:monaco;">eager promotion</span>.
+For example, LRU-based algorithms promote objects to the head of the queue on cache hits, which we call <span style="font-family:monaco;">eager promotion</span>.
 Meanwhile, <span style="font-family:monaco;">demotion</span> is performed implicitly: when an object is promoted, other objects are passively demoted.
 We call this process <span style="font-family:monaco;">passive demotion</span>, a slow process as objects need to traverse through the cache queue before being evicted.
 However, we will show that instead of eager promotion and passive demotion, eviction algorithms should use **lazy promotion** and **quick demotion**.
@@ -130,7 +130,7 @@ Comparison of FIFO-Reinsertion and LRU on 10 datasets with 5307 traces. Left: sm
 <img src="multi_LRU_Clock-2_3.svg" alt="large cache" style="width:40%">
 </div>
 <div style="width: 88%; margin: 0 auto;">
-Comparison of 2-bit CLOCK and LRU on 10 datasets with 5307 traces. Left: small cache, right: large cache. A longer bar means the algorithm is more efficient (having lower miss ratios on more traces). Note that we do not consider the overhead of LRU metadata in all the evaluations. 
+Comparison of 2-bit CLOCK and LRU on 10 datasets with 5307 traces. Left: small cache, right: large cache. A longer bar means the algorithm is more efficient (having lower miss ratios on more traces). Note that we do not consider the overhead of LRU metadata in these evaluations. 
 </div>
 
 The figure above shows that FIFO-Reinsertion and 2-bit CLOCK are better than LRU on most traces.
@@ -147,12 +147,12 @@ Across all datasets, 2-bit CLOCK is better than FIFO on all datasets at the smal
 <figcaption>FIFO-Reinsertion demotes new objects faster than LRU because objects requested before the new object also pushes it down the queue.</figcaption>
 </figure>
 
-Two reasons contribute to <span style="font-family:arial; font-variant-cap:small-caps">LP-FIFO</span>'s high efficiency.
+Two reasons contribute to <span style="font-family:arial; font-variant-cap:small-caps">LP-FIFO</span>'s high effectiveness.
 First, **lazy promotion** often leads to **quick demotion**. For example, under LRU, a newly-inserted object *G* is pushed down the queue only by (1) new objects and (2) cached objects that are requested after *G*. However, besides the objects requested after *G*, the objects requested before *G* (but have not been promoted, e.g., *B*, *D*) also push *G* down the queue when using FIFO-Reinsertion.
 Second, compared to promotion at each request, object ordering in <span style="font-family:arial; font-variant-cap:small-caps">LP-FIFO</span> is closer to the insertion order, which we conjecture is better suited for many workloads that exhibit popularity decay --- old objects have a lower probability of getting a request.
 
 
-While <span style="font-family:arial; font-variant-cap:small-caps">LP-FIFO</span> surprisingly wins over LRU in miss ratio, it cannot outperform state-of-the-art algorithms. We next discuss another building block that bridges this gap.
+While <span style="font-family:arial; font-variant-cap:small-caps">LP-FIFO</span> surprisingly wins over LRU in miss ratio, it does not outperform state-of-the-art algorithms. We next discuss another building block that bridges this gap.
 
 
 
@@ -184,7 +184,7 @@ When the probationary FIFO queue is full, if the object to evict has been access
 We add this FIFO-based QD technique to five state-of-the-art eviction algorithms, ARC, LIRS, CACHEUS, LeCaR, and LHD.
 We used the open-source LHD implementation from the authors, implemented the others following the corresponding papers, and cross-checked with open-source implementations.
 We evaluated the QD-enhanced and original algorithms on the 5307 traces.
-Because the traces have a wide range of miss ratios, we choose to present each algorithm's miss ratio reduction from FIFO calculated as *(mr<sub>FIFO</sub> - mr<sub>algo</sub>) / mr<sub>FIFO</sub>*.
+Because the traces have a wide range of miss ratios, we choose to present each algorithm's miss ratio reduction from FIFO calculated as *(mr<sub>FIFO</sub> - mr<sub>algo</sub>) / mr<sub>FIFO</sub>*. Therefore, higher values are better. 
 
 
 <div style="display: flex; justify-content: space-around;">
@@ -202,15 +202,15 @@ On the block (first row) and web traces (second row), quick demotion can improve
 
 
 The figures above show that the QD-enhanced algorithms further reduce the miss ratio of each state-of-the-art algorithm on almost all percentiles. For example, QD-ARC (QD-enhanced ARC) reduces ARC's miss ratio by up to 59.8% with a mean reduction of 1.5% across all workloads on the two cache sizes, QD-LIRS reduces LIRS's miss ratio by up to 49.6% with a mean of 2.2%, and QD-LeCaR reduces LeCaR's miss ratio by up to 58.8% with a mean of 4.5%.
-Note that achieving a large miss ratio reduction on a large number of diverse traces is non-trivial. For example, the best state-of-the-art algorithm, ARC, can only reduce the miss ratio of LRU 6.2% on average.
+Note that achieving a large miss ratio reduction on a large number of diverse traces is non-trivial. For example, the best state-of-the-art algorithm, ARC, can only reduce the miss ratio of LRU by 6.2% on average.
 
-The gap between the QD-enhanced algorithm and the original algorithm is wider (1) when the state-of-the-art is relatively weak, (2) when the cache size is large, and (3) on the web workloads.
-With a weaker state-of-the-art, the opportunity for improvement is larger, allowing QD to provide more prominent benefits. For example, QD-LeCaR reduces LeCaR's miss ratios by 4.5% on average, larger than the reductions on other state-of-the-art algorithms.
-When the cache size is large, unpopular objects spend more time in the cache, and **quick demotion** becomes more valuable.
+The gap between the QD-enhanced algorithm and an original algorithm is wider (1) when the state-of-the-art is relatively weak, (2) when the cache size is large, and (3) on the web workloads.
+First, With a weaker state-of-the-art, the opportunity for improvement is larger, allowing QD to provide more prominent benefits. For example, QD-LeCaR reduces LeCaR's miss ratios by 4.5% on average, larger than the reductions on other state-of-the-art algorithms.
+Second, when the cache size is large, unpopular objects spend more time in the cache, and **quick demotion** becomes more valuable.
 For example, QD-ARC and ARC have similar miss ratios on the block workloads at the small cache size. But QD-ARC reduces ARC's miss ratio by 2.3% on average at the large cache size.
 However, when the cache size is too large, e.g., 80% of the number of objects in the trace,
 adding QD may increase the miss ratio (not shown).
-At last, QD provides more benefits on the web workloads than the block workloads, especially when the cache size is small. We conjecture that web workloads have more short-lived data and exhibit stronger popularity decay, which leads to a more urgent need for **quick demotion**.
+Third, QD provides more benefits on the web workloads than the block workloads, especially when the cache size is small. We conjecture that web workloads have more short-lived data and exhibit stronger popularity decay, which leads to a more urgent need for **quick demotion**.
 While **quick demotion** improves the efficiency of most state-of-the-art algorithms, for a small subset of traces, QD may increase the miss ratio when the cache size is small because the probationary FIFO is too small to capture some potentially popular objects.
 
 
@@ -228,10 +228,10 @@ While the goal of this work is not to propose a new eviction algorithm, <span st
 We have demonstrated reinsertion as an example of LP and the use of a small probationary FIFO queue as an example of QD. However, these are not the only techniques.
 For example, reinsertion can leverage different metrics to decide whether the object should be reinserted. Besides reinsertion, several other techniques are often used to reduce promotion and improve scalability, e.g., periodic promotion, batched promotion, promoting old objects only, and promoting with try-lock. 
 Although these techniques do not fall into our strict definition of **lazy promotion** (promotion on eviction), many of them effectively retain popular objects from being evicted.
-On the **quick demotion** side, besides the small probationary FIFO queue, one can leverage other techniques to define and discover unpopular objects such as Hyperbolic and LHD.
-Moreover, admission algorithms, e.g., TinyLFU, Bloom Filter, probabilistic, and ML-based admission algorithms, can be viewed as a form of QD --- albeit some of them are too aggressive at demotion (rejecting objects from entering the cache).
+On the **quick demotion** side, besides the small probationary FIFO queue, one can leverage other techniques to define and discover unpopular objects such as [Hyperbolic](https://www.usenix.org/system/files/conference/atc17/atc17-blankstein.pdf) and [LHD](https://www.usenix.org/system/files/conference/nsdi18/nsdi18-beckmann.pdf).
+Moreover, admission algorithms, e.g., [TinyLFU](https://dl.acm.org/doi/pdf/10.1145/3149371), Bloom Filter, probabilistic, and [ML-based admission algorithms](https://www.usenix.org/system/files/nsdi19-eisenman.pdf), can be viewed as a form of QD --- though some of them are too aggressive at demotion (rejecting objects from entering the cache).
 
-Note that QD bears similarity with some generational garbage collection algorithms, which separately store short-lived and long-lived data in young-gen and old-gen heaps.
+Note that QD bears similarity with some [generational garbage collection algorithms](https://wiki.c2.com/?GenerationalGarbageCollection), which separately store short-lived and long-lived data in young-gen and old-gen heaps.
 Therefore, ideas from garbage collection may be borrowed to strengthen cache eviction algorithms.
 
 The design of <span style="font-family:arial; font-variant-cap:small-caps">QD-LP-FIFO</span> opens the door to designing simple yet efficient cache eviction algorithms by innovating on LP and QD techniques. And we envision future eviction algorithms can be designed like building LEGO --- adding **lazy promotion** and **quick demotion** on top of a base eviction algorithm.
