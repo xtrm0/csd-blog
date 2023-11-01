@@ -1,6 +1,6 @@
 +++
 title = "FIFO is Better than LRU: the Power of Lazy Promotion and Quick Demotion"
-date = 2023-06-14
+date = 2023-09-20
 
 [taxonomies]
 areas = ["Systems", ]
