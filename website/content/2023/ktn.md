@@ -17,7 +17,7 @@ tags = ["graph neural network", "heterogeneous graph", "transfer learning"]
 # For example:
 #   author = "Harry Bovik"
 # However, adding a URL is strongly preferred
-author = {name = "Minji Yoon", url = "www.minjiyoon.xyz" }
+author = {name = "Minji Yoon", url = "https://www.minjiyoon.xyz" }
 # The committee specification is simply a list of strings.
 # However, you can also make an object with fields like in the author.
 committee = [
