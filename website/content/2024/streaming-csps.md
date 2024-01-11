@@ -161,6 +161,30 @@ However, this in turn introduces a new complication. At the point where we decid
 
 There are several interesting open questions remaining from the above works. Firstly, it would be interesting to extend the results presented above to other CSPs besides **Max-DICUT**. For instance, we know of analogues for oblivious algorithms for **Max-\\(k\\)AND** for all \\(k \geq 2\\), but whether there are snapshot estimation algorithms which "implement" these oblivious algorithms in less-than-large space is an open question. Also, there is a yawning gap between medium and large space. Proving any approximation *impossibility* result, or constructing better approximation algorithms, in the between-medium-and-large space regime. We mention that the snapshot-based approach cannot give optimal approximations (i.e., with ratios approaching \\(1/2\\), where less-than-large space impossibility results are known) because of hard instances with matching snapshots and **Max-DICUT** value gaps discovered by Feige and Jozeph.
 
+## Bibliography
+
+R. R. Saxena, N. G. Singer, M. Sudan, and S. Velusamy, “Streaming complexity of CSPs with randomly ordered constraints,” in *Proceedings of the 2023 Annual ACM-SIAM Symposium on Discrete Algorithms*, Jan. 2023. doi: [10.1137/1.9781611977554.ch156](https://doi.org/10.1137/1.9781611977554.ch156).
+
+R. R. Saxena, N. Singer, M. Sudan, and S. Velusamy, “Improved streaming algorithms for Maximum Directed Cut via smoothed snapshots,” in *IEEE 63rd Annual Symposium on Foundations of Computer Science*, IEEE Computing Society, 2023, pp. 855–870. doi: [10.1109/FOCS57990.2023.00055](https://doi.org/10.1109/FOCS57990.2023.00055).
+
+N. Alon, Y. Matias, and M. Szegedy, “The Space Complexity of Approximating the Frequency Moments,” *Journal of Computer and System Sciences*, vol. 58, no. 1, pp. 137–147, Feb. 1999, doi: [10.1006/jcss.1997.1545](https://doi.org/10.1006/jcss.1997.1545).
+
+P. Indyk, “Stable distributions, pseudorandom generators, embeddings, and data stream computation,” *J. ACM*, vol. 53, no. 3, pp. 307–323, May 2006, doi: [10.1145/1147954.1147955](https://doi.org/10.1145/1147954.1147955)
+
+M. Kapralov, S. Khanna, and M. Sudan, “Streaming lower bounds for approximating MAX-CUT,” in *Proceedings of the 26th Annual ACM-SIAM Symposium on Discrete Algorithms*, Society for Industrial and Applied Mathematics, Jan. 2015, pp. 1263–1282. doi: [10.1137/1.9781611973730.84](https://doi.org/10.1137/1.9781611973730.84).
+
+M. Kapralov and D. Krachun, “An optimal space lower bound for approximating MAX-CUT,” in *Proceedings of the 51st Annual ACM SIGACT Symposium on Theory of Computing,* Association for Computing Machinery, Jun. 2019, pp. 277–288. doi: [10.1145/3313276.3316364](https://doi.org/10.1145/3313276.3316364).
+
+V. Guruswami, A. Velingker, and S. Velusamy, “Streaming Complexity of Approximating Max 2CSP and Max Acyclic Subgraph,” in *Approximation, randomization, and combinatorial optimization. Algorithms and techniques*, K. Jansen, J. D. P. Rolim, D. Williamson, and S. S. Vempala, Eds., in LIPIcs, vol. 81. Schloss Dagstuhl — Leibniz-Zentrum für Informatik, Aug. 2017, p. 8:1-8:19. doi: [10.4230/LIPIcs.APPROX-RANDOM.2017.8](https://doi.org/10.4230/LIPIcs.APPROX-RANDOM.2017.8).
+
+C.-N. Chou, A. Golovnev, and S. Velusamy, “Optimal Streaming Approximations for all Boolean Max-2CSPs and Max-\\(k\\)SAT,” in *IEEE 61st Annual Symposium on Foundations of Computer Science*, IEEE Computer Society, Nov. 2020, pp. 330–341. doi: [10.1109/FOCS46700.2020.00039](https://doi.org/10.1109/FOCS46700.2020.00039).
+
+J. Boyland, M. Hwang, T. Prasad, N. Singer, and S. Velusamy, “On sketching approximations for symmetric Boolean CSPs,” in *Approximation, Randomization, and Combinatorial Optimization. Algorithms and Techniques*, A. Chakrabarti and C. Swamy, Eds., in LIPIcs, vol. 245. Schloss Dagstuhl — Leibniz-Zentrum für Informatik, Jul. 2022, p. 38:1--38:23. doi: [10.4230/LIPIcs.APPROX/RANDOM.2022.38](https://doi.org/10.4230/LIPIcs.APPROX/RANDOM.2022.38).
+
+U. Feige and S. Jozeph, “Oblivious Algorithms for the Maximum Directed Cut Problem,” *Algorithmica*, vol. 71, no. 2, pp. 409–428, Feb. 2015, doi: [10.1007/s00453-013-9806-z](https://doi.org/10.1007/s00453-013-9806-z).
+
+N. G. Singer, “Oblivious algorithms for the Max-\\(k\\)AND problem,” in *Approximation, Randomization, and Combinatorial Optimization. Algorithms and Techniques*, N. Megow and A. D. Smith, Eds., in LIPIcs, vol. 275. May 2023. doi: [10.4230/LIPIcs.APPROX/RANDOM.2023.15](https://doi.org/10.4230/LIPIcs.APPROX/RANDOM.2023.15).
+
 [^ppty-tst]: More precisely, this typically means that the object is "far from" the set of objects having \\(P\\) in some mathematical sense. For instance, if the objects are graphs and the property \\(P\\) is a graph property like bipartitness, "really not having \\(P\\)" might mean that many edges in the graph must be added or deleted in order to get \\(P\\) to hold.
 [^contrast]: This is in contrast to more traditional areas of theory, such as time complexity, where many impossibility results are "conditional" on conjectures like \\(\mathbf{P} \neq \mathbf{NP}\\).
 [^factor]: More precisely, for all \\(\epsilon>0\\) these algorithms output some value \\(\hat{v}\\) satisfying \\(\hat{v} \in (1\pm\epsilon) \\|\mathbf{v}\\|_p\\) with high probability, and use \\(O(\log n/\epsilon^{O(1)})\\) space.
