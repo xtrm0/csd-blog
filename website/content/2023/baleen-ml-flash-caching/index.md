@@ -2,7 +2,7 @@
 # The title of your blogpost. No sub-titles are allowed, nor are line-breaks.
 title = "Baleen: ML admission & prefetching for flash caches"
 # Date must be written in YYYY-MM-DD format. This should be updated right before the final PR is made.
-date = 2023-05-09
+date = 2024-01-12
 
 [taxonomies]
 # Keep any areas that apply, removing ones that don't. Do not add new areas!
@@ -21,9 +21,9 @@ author = {name = "Daniel Lin-Kit Wong", url = "http://www.cs.cmu.edu/~dlwong" }
 # The committee specification is simply a list of strings.
 # However, you can also make an object with fields like in the author.
 committee = [
-    "George Amvrosiadis",
-    "Rashmi Korlakai Vinayak",
-    "Thomas S. Kim",
+    {name="George Amvrosiadis", url="https://users.ece.cmu.edu/~gamvrosi/"},
+    {name="Rashmi Korlakai Vinayak", url="https://www.cs.cmu.edu/~rvinayak/"},
+    {name="Thomas S. Kim", url="https://www.pdl.cmu.edu/People/tkim.shtml"},
 ]
 +++
 
@@ -228,14 +228,13 @@ To read more, please see Section 6 (Lessons from deploying ML in production) of 
 
 Baleen is a flash cache that uses ML to guide both prefetching and cache admission, reducing peak storage backend load on real workload traces from Meta. Baleen's design arose from a number of false-step lessons and a cache residency (episodes) formulation that improves training effectiveness, provides an ideal (OPT) target, and exposed the particular value of ML-guided prefetching. As such, Baleen is an important step forward in flash caching for disk-based storage systems.
 
-More details are available in our paper, which is under submission. Please
+More details are available in our paper, which [has been accepted to FAST 2024](https://www.usenix.org/conference/fast24/presentation/wong). Please
 direct any correspondence to [Daniel Wong](mailto:wonglkd@cmu.edu).
 
 # Acknowledgements
 
-This post is based on the paper _Baleen: ML Admission & Prefetching for Flash Caches_. I would like to thank my collaborators and the CacheLib and Tectonic teams at Meta: Carson Molder (UT Austin), Hao Wu (Meta), Sathya Gunasekar (Meta), Jimmy Lu (Meta), Snehal Khandkar (Meta), Abhinav Sharma (Meta), Daniel S. Berger (Microsoft Research & University of Washington), Nathan Beckmann (CMU), and Greg Ganger (CMU).
-I would also like to thank the reviewers of this post: George Amvrosiadis,
-and Thomas Kim.
+This post is based on the paper _Baleen: ML Admission & Prefetching for Flash Caches_. I would like to thank my collaborators and the CacheLib and Tectonic teams at Meta: Hao Wu (Meta), Carson Molder (UT Austin), Sathya Gunasekar (Meta), Jimmy Lu (Meta), Snehal Khandkar (Meta), Abhinav Sharma (Meta), Daniel S. Berger (Microsoft Research & University of Washington), Nathan Beckmann (CMU), and Greg Ganger (CMU).
+I would also like to thank the reviewers of this post: George Amvrosiadis, Rashmi Vinayak, and Thomas Kim.
 
 # References
 
