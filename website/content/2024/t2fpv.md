@@ -2,7 +2,7 @@
 # The title of your blogpost. No sub-titles are allowed, nor are line-breaks.
 title = "T2FPV: Dataset and Method for Correcting First-Person View Errors in Pedestrian Trajectory Prediction"
 # Date must be written in YYYY-MM-DD format. This should be updated right before the final PR is made.
-date = 2023-12-05
+date = 2024-03-19
 
 [taxonomies]
 # Keep any areas that apply, removing ones that don't. Do not add new areas!
@@ -91,14 +91,14 @@ Another problem that BEV perspective addresses is ensuring naturalistic human
 behavior.  To collect data in FPV, either robots or humans themselves have to
 wear cameras when navigating among others.  This can lead to several
 psychological effects, such as the Hawthorne effect, where people's behavior can
-change when they know they're being observed, as well as the novelty effect.
+change when they know they're being observed, as well as the novelty effect [10].
 Thus, while FPV datasets for pedestrian trajectory forecasting exist, they
 contain both FPV errors as well as no guarantees of naturalistic behavior in the
 first place.
 
-Still, using only BEV data is also problematic. In nearly all deployed
-situations, a robot will not have access to top-down, perfect information of
-others in the scene.  Training a prediction policy which **relies** on having
+However, BEV data has a very serious flaw: in nearly all deployed
+situations, a robot does **not** have access to top-down, perfect information of
+others in the scene. Training a prediction policy which **relies** on having
 this information, rather than having to deal with FPV errors, causes prediction
 models to be unrealistically effective, leading to a false sense of confidence
 in their abilities.
@@ -146,7 +146,7 @@ fixed-length, sliding window manner over the original data, and only scenes with
 at least two agents present at the same time are kept. These scenes consist of
 20 timesteps at 2.5 frames per second, where the first eight are kept as
 "history" and the next 12 are considered the "future" to be predicted. We
-utilize the Hungarian matching algorithm to associate together the GT set of
+utilize the Hungarian matching algorithm [11] to associate together the GT set of
 visible agents (from our simulation annotations directly) with the observed set
 of people from detection and tracking. Where a given BEV scene has *N* people
 moving around at the same time, we thus create *N* FPV variations of this scene,
@@ -183,20 +183,22 @@ of FPV Errors", or CoFE, module is similar to previous recurrent neural network
 imputation from some upstream method (e.g. NAOMI). Then, it proceeds in an
 encoder-decoder manner, where an encoder RNN is used to build a hidden state
 representation of this input sequence. A decoder RNN is next used to
-sequentially output
-**refinements** of the trajectory, before passing it on to the trajectory
-forecasting phase. The full architecture is visualized in the figure below, with
+sequentially output **refinements** of the trajectory, before passing it on to
+the trajectory forecasting phase.  To encourage this module to perform such
+refinements, a simple mean-square error (MSE) loss objective is utilized,
+between the refined history track (i.e., the output of the decoder) and the
+ground truth associated history. The refined trajectory is used **instead of**
+the trajectory produced directly from the detection and tracking modules, to
+train both the CoFE module as well as the trajectory prediction model itself in
+an E2E fashion, along with the original loss objective of the prediction model. 
+
+The full architecture is visualized in the figure below, with
 a deeper discussion of each component explained in our paper:
 
 <figure style="text-align:center;">
 <img src=./cofe.png  width="800" alt="CoFE module architecture" title="CoFE module architecture">
 </figure>
 
-A simple mean-square error (MSE) loss objective is utilized, between the refined
-history track and the ground truth associated history. This refined trajectory
-is used **instead of** the trajectory produced directly from the detection and
-tracking modules, to train both the CoFE module as well as the trajectory
-prediction model itself in an E2E fashion. 
 
 ## Experiments and Results
 
@@ -251,7 +253,11 @@ tracking trajectories with their corresponding GT tracks, we relied on Hungarian
 matching on our tracking output directly, which incurred some number of identity
 association errors.  Incorporating recent works on affinity-based techniques
 re-tracking algorithms could be a promising way to help with this problem and
-even further reduce FPV errors.
+even further reduce FPV errors. One further thread of research is also applying
+these techniques to related domains where FPV sensing is required, such as
+autonomous driving. While this related field has its own challenges, considering
+imputation and prediction together to account for sensing errors could be a
+promising direction therein.
 
 ## Conclusion
 
@@ -287,3 +293,8 @@ world. For more information, please see our paper [5].
 [8] Bertugli, Alessia, et al. "AC-VRNN: Attentive Conditional-VRNN for multi-future trajectory prediction." Computer Vision and Image Understanding 210 (2021): 103245.
 
 [9] Wang, Chuhua, et al. "Stepwise goal-driven networks for trajectory prediction." IEEE Robotics and Automation Letters 7.2 (2022): 2716-2723.
+
+[10] Irfan, Bahar, et al. "Social psychology and human-robot interaction: An uneasy marriage." Companion of the 2018 ACM/IEEE international conference on human-robot interaction. 2018.
+
+[11] Kuhn, Harold W. "The Hungarian method for the assignment problem." Naval research logistics quarterly 2.1‐2 (1955): 83-97.
+
