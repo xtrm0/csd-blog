@@ -2,7 +2,7 @@
 # The title of your blogpost. No sub-titles are allowed, nor are line-breaks.
 title = "Better streaming algorithms for Maximum Directed Cut via 'snapshots'"
 # Date must be written in YYYY-MM-DD format. This should be updated right before the final PR is made.
-date = 2024-03-31
+date = 2024-04-11
 
 [taxonomies]
 areas = ["Theory"]
@@ -182,7 +182,7 @@ First, suppose we were promised that in \\(\Psi\\), every vertex has degree at m
 2. *During the stream*, (i) store all edges whose endpoints are both in \\(S\\), and (ii) measure the biases of each vertex in \\(S\\).
 3. *After the stream*, take \\(E\\) to be the set of edges whose endpoints are both in \\(S\\). Observe that we know the biases of the endpoints of all edges in \\(E\\), and therefore the bias class of every edge in \\(E\\). Use the number of edges in \\(E\\) in bias class \\((b_1,b_2)\\) to estimate the total number of edges in \\(\Psi\\) in this bias class.
 
-Observe that the expected number of edges in \\(E\\) is \\(\sim m (k/n)^2\\) where \\(m\\) is the number of edges in \\(\Psi\\). If \\(m = O(n)\\), then \\(|E| = \Omega(1)\\) (in expectation) as long as \\(k = \Omega(\sqrt n)\\), which is precisely why this algorithm "kicks in" once we have medium space![^hash] Once \\(S\\) is this large, we can indeed show that \\(E\\) suffices to estimate the snapshot. The proof of correctness of the estimate relies on *bounded dependence* of \\(E\\), by which we mean that in the collection of events \\(\\{e \in E\\}\_{e \in \Psi}\\), each event is independent of all but \\(O(1)\\) other events. Indeed, observe that since \\(\Psi\\) has maximum degree \\(D\\), every edge in \\(\Psi\\) is incident to \\(\leq 2D-1\\) other edges. (Two edges are *incident* if they share at least one endpoint.) And for any two edges \\(e, e' \in \Psi\\), the events "\\(e \in \Psi\\)" and "\\(e' \in \Psi\\)" are *not* independent iff \\(e\\) and \\(e'\\) are incident.
+Observe that the expected number of edges in \\(E\\) is \\(\sim m (k/n)^2\\) where \\(m\\) is the number of edges in \\(\Psi\\). If \\(m = O(n)\\), then \\(|E| = \Omega(1)\\) (in expectation) as long as \\(k = \Omega(\sqrt n)\\), which is precisely why this algorithm "kicks in" once we have medium space! [^hash] Once \\(S\\) is this large, we can indeed show that \\(E\\) suffices to estimate the snapshot. The proof of correctness of the estimate relies on *bounded dependence* of \\(E\\), by which we mean that in the collection of events \\(\\{e \in E\\}\_{e \in \Psi}\\), each event is independent of all but \\(O(1)\\) other events. Indeed, observe that since \\(\Psi\\) has maximum degree \\(D\\), every edge in \\(\Psi\\) is incident to \\(\leq 2D-1\\) other edges. (Two edges are *incident* if they share at least one endpoint.) And for any two edges \\(e, e' \in \Psi\\), the events "\\(e \in \Psi\\)" and "\\(e' \in \Psi\\)" are *not* independent iff \\(e\\) and \\(e'\\) are incident.
 
 ## The general case
  
