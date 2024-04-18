@@ -169,7 +169,7 @@ In other words, our approximation is *better,* *faster,* and *stronger.* These t
 Given the above, you're probably chomping at the bit to learn how we managed to prove such uniquely powerful results,
 especially given that the model we study has *Deterministic* setup times, which are notoriously difficult to analyze with existing methods.
 Unfortunately, we don't have time here to properly discuss the method that we developed to analyze our complicated Deterministic model.
-However, those interested will be able to find an in-depth description of the **MIST** method in my thesis document, available on my [website,](https://jalaniw.github.io) by the time I defend (May 5th, 2024).
+However, those interested will be able to find an in-depth description of the **MIST** method in my thesis document, available on my [website,](https://jalaniw.github.io) by the time I defend (May 2nd, 2024).
 And don't worry, it'll definitely be posted by that day ---no need to factor in setup times.
 
 
