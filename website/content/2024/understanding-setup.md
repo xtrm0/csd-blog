@@ -66,7 +66,7 @@ At this point you might be wondering whether setup times actually hurt performan
 The short answer is: yes, in real systems, setup times can hurt *a lot*.
 The longer answer is that the effect of setup times on a system is a complex interaction between 1) the length of a typical setup time, 2) the length of a typical *service time* (the average length of a job), 3) the total number of servers available, and 4) the arrival rate of jobs.
 In real systems, where setup times are *hundreds* ---even *thousands*--- of times larger than service times, the average waiting time of a customer can be *almost wholly determined* by the system's setup behavior.
-![bar plot comparing setup to no-setup. The blue bar (no-setup) is much smaller than the green bar (Setup). Sim results with average job length of 1 m.s., load of one half, and setup time of 100 m.s. ](./setupVnosetup.png)
+![bar plot comparing setup to no-setup. The blue bar (no-setup) is much smaller than the green bar (Setup). Sim results with average job length of 1 m.s., load of one half, and setup time of 100 m.s. ](setupVnosetup.png)
 
 
 
@@ -131,7 +131,7 @@ In our experiments, we’ve found that, compared to what actually happens, the a
 Although the predictions of our model and the previous model are within are (relatively) close when studying small systems, the relative gap between these predictions rapidly widens as we increase the system scale.
 This gigantic prediction error makes the previous model essentially impossible to use in any practical setting.
 
-![bar plot with no setup (blue bars), previous model (orange bars), Reality (green bars), and Our approximation (light blue bars). The no setup bars are very, very small and the previous model varies widely, but the Our approximation bars are very close to their Reality counterparts. Uses same parameters as previous figure.](./setup-comparison-smaller.png)
+![bar plot with no setup (blue bars), previous model (orange bars), Reality (green bars), and Our approximation (light blue bars). The no setup bars are very, very small and the previous model varies widely, but the Our approximation bars are very close to their Reality counterparts. Uses same parameters as previous figure.](setup-comparison-smaller.png)
 
 ## __How our results change the game__
 Our results change the game in three major ways: Compared to previous work, we 1) study a much more realistic model, 2) prove much stronger theoretical results, and 3) greatly improve upon the practical utility of existing work.
