@@ -281,24 +281,24 @@ world. For more information, please see our paper [5].
 
 ## References
 
-[1] Pellegrini, Stefano, et al. "You'll never walk alone: Modeling social behavior for multi-target tracking." 2009 IEEE 12th international conference on computer vision. IEEE, 2009.
+[1] Pellegrini, Stefano, et al. "You'll never walk alone: Modeling social behavior for multi-target tracking." 2009 IEEE 12th international conference on computer vision. IEEE, 2009. [https://ieeexplore.ieee.org/document/5459260](https://ieeexplore.ieee.org/document/5459260)
 
-[2] Tsoi, Nathan, et al. "An approach to deploy interactive robotic simulators on the web for hri experiments: Results in social robot navigation." 2021 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS). IEEE, 2021.
+[2] Tsoi, Nathan, et al. "An approach to deploy interactive robotic simulators on the web for hri experiments: Results in social robot navigation." 2021 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS). IEEE, 2021. [https://arxiv.org/abs/2012.12336](https://arxiv.org/abs/2012.12336)
 
-[3] Park, Dennis, et al. "Is pseudo-lidar needed for monocular 3d object detection?." Proceedings of the IEEE/CVF International Conference on Computer Vision. 2021.
+[3] Park, Dennis, et al. "Is pseudo-lidar needed for monocular 3d object detection?." Proceedings of the IEEE/CVF International Conference on Computer Vision. 2021. [https://arxiv.org/abs/2108.06417](https://arxiv.org/abs/2108.06417)
 
-[4] Chiu, Hsu-kuang, et al. "Probabilistic 3d multi-object tracking for autonomous driving." arXiv preprint arXiv:2001.05673 (2020).
+[4] Chiu, Hsu-kuang, et al. "Probabilistic 3d multi-object tracking for autonomous driving." arXiv preprint arXiv:2001.05673 (2020). [https://arxiv.org/abs/2001.05673](https://arxiv.org/abs/2001.05673)
 
-[5] Stoler, Benjamin, et al. "T2FPV: Dataset and Method for Correcting First-Person View Errors in Pedestrian Trajectory Prediction." 2023 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS). IEEE, 2023. 
+[5] Stoler, Benjamin, et al. "T2FPV: Dataset and Method for Correcting First-Person View Errors in Pedestrian Trajectory Prediction." 2023 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS). IEEE, 2023. [https://arxiv.org/abs/2209.11294](https://arxiv.org/abs/2209.11294)
 
-[6] Liu, Yukai, et al. "Naomi: Non-autoregressive multiresolution sequence imputation." Advances in neural information processing systems 32 (2019).
+[6] Liu, Yukai, et al. "Naomi: Non-autoregressive multiresolution sequence imputation." Advances in neural information processing systems 32 (2019). [https://arxiv.org/abs/1901.10946](https://arxiv.org/abs/1901.10946)
 
-[7] Chung, Junyoung, et al. "A recurrent latent variable model for sequential data." Advances in neural information processing systems 28 (2015).
+[7] Chung, Junyoung, et al. "A recurrent latent variable model for sequential data." Advances in neural information processing systems 28 (2015). [https://arxiv.org/abs/1506.02216](https://arxiv.org/abs/1506.02216)
 
-[8] Bertugli, Alessia, et al. "AC-VRNN: Attentive Conditional-VRNN for multi-future trajectory prediction." Computer Vision and Image Understanding 210 (2021): 103245.
+[8] Bertugli, Alessia, et al. "AC-VRNN: Attentive Conditional-VRNN for multi-future trajectory prediction." Computer Vision and Image Understanding 210 (2021): 103245. [https://arxiv.org/abs/2005.08307](https://arxiv.org/abs/2005.08307)
 
-[9] Wang, Chuhua, et al. "Stepwise goal-driven networks for trajectory prediction." IEEE Robotics and Automation Letters 7.2 (2022): 2716-2723.
+[9] Wang, Chuhua, et al. "Stepwise goal-driven networks for trajectory prediction." IEEE Robotics and Automation Letters 7.2 (2022): 2716-2723. [https://arxiv.org/abs/2103.14107](https://arxiv.org/abs/2103.14107)
 
-[10] Irfan, Bahar, et al. "Social psychology and human-robot interaction: An uneasy marriage." Companion of the 2018 ACM/IEEE international conference on human-robot interaction. 2018.
+[10] Irfan, Bahar, et al. "Social psychology and human-robot interaction: An uneasy marriage." Companion of the 2018 ACM/IEEE international conference on human-robot interaction. 2018. [https://dl.acm.org/doi/abs/10.1145/3173386.3173389](https://dl.acm.org/doi/abs/10.1145/3173386.3173389)
 
-[11] Kuhn, Harold W. "The Hungarian method for the assignment problem." Naval research logistics quarterly 2.1‐2 (1955): 83-97.
+[11] Kuhn, Harold W. "The Hungarian method for the assignment problem." Naval research logistics quarterly 2.1‐2 (1955): 83-97. [https://onlinelibrary.wiley.com/doi/abs/10.1002/nav.3800020109](https://onlinelibrary.wiley.com/doi/abs/10.1002/nav.3800020109)
