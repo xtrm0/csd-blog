@@ -2,7 +2,7 @@
 # The title of your blogpost. No sub-titles are allowed, nor are line-breaks.
 title = "Piano: Extremely Simple, Single-Server Private Information Retrieval"
 # Date must be written in YYYY-MM-DD format. This should be updated right before the final PR is made.
-date = 2024-02-29
+date = 2024-05-16
 
 [taxonomies]
 # Keep any areas that apply, removing ones that don't. Do not add new areas!
