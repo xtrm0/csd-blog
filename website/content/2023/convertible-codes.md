@@ -74,7 +74,7 @@ There are several open problems in this new design space, with a high potential 
 
 We start by providing some [background](#background) about storage systems, erasure codes, and the way erasure codes are used in storage systems.
 Then, we introduce and formally define [code conversion and convertible codes](#conversion).
-Afterwards, we provide a [summary of our results](#min-cost) and showcase some examples that show how convertible codes can reduce conversion cost.
+Afterwards, we provide a [summary of our results](#access-opt) and showcase some examples that show how convertible codes can reduce conversion cost.
 Finally, we conclude with some [open problems](#conclusion).
 
 ## Background on storage systems {#background}
@@ -313,7 +313,7 @@ Then, the read data symbols are used to compute the corresponding parity symbols
 
 > **Example 2.** <a name="ex-access-split"></a>
 > Consider the conversion from \\([n^I = 11, k^I = 8]\\) to \\([n^F = 7, k^F = 4]\\) over \\(\mathrm{GF}(17)\\).
-> Suppose we use the same \\(\mathbf{P}^I\\) and \\(\mathbf{P}^F\\) from [example 1](#merge-ex) but swapped.
+> Suppose we use the same \\(\mathbf{P}^I\\) and \\(\mathbf{P}^F\\) from [example 1](#ex-merge) but swapped.
 > During conversion, the converter reads \\((a_5,\ldots,a_8)\\) and the 3 initial parities \\((a_1,\ldots,a_8)\mathbf{P}^I\\).
 > The parity symbols of the second final codeword can be computed directly from the data;
 > the parity symbols of the first final codeword are computed as follows:
