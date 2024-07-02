@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://www.cs.cmu.edu/~csd-phd-blog/sitemap.xml

@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+      <meta http-equiv="X-UA-Compatible" content="IE=edge">
+      <meta http-equiv="content-type" content="text/html; charset=utf-8">
+
+      <!-- Enable responsiveness on mobile devices-->
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+
+      <title>CMU CSD PhD Blog</title>
+
+      
+        <link rel="alternate" type="application/atom+xml" title="RSS" href="https://www.cs.cmu.edu/~csd-phd-blog/atom.xml">
+      
+
+      
+          <script src="https://cdnjs.cloudflare.com/ajax/libs/slideout/1.0.1/slideout.min.js"></script>
+          
+          <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/katex.min.css" integrity="sha384-9eLZqc9ds8eNjO3TmqPeYcDj8n+Qfa4nuSiGYa6DjLNcv9BtN69ZIulL9+8CqC9Y" crossorigin="anonymous">
+
+          <script defer src="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/katex.min.js" integrity="sha384-K3vbOmF2BtaVai+Qk37uypf7VrgBubhQreNQe9aGsz9lB63dIFiQVlJbr92dw2Lx" crossorigin="anonymous"></script>
+          <script defer src="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/contrib/mathtex-script-type.min.js" integrity="sha384-zWYbd0NBwgTsgIdFKVprSfTh1mbMPe5Hz1X3yY4Sd1h/K1cQoUe36OGwAGz/PcDy" crossorigin="anonymous"></script>
+              
+          <script defer src="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/contrib/auto-render.min.js" integrity="sha384-kmZOZB5ObwgQnS/DuDg6TScgOiWWBiVt0plIRkZCmE6rDZGrEOQeHM5PcHi+nyqe" crossorigin="anonymous"
+                  onload="renderMathInElement(document.body);"></script>
+              
+          
+      
+
+      
+          <link rel="stylesheet" href="https://www.cs.cmu.edu/~csd-phd-blog/site.css">
+          
+          <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/katex.min.css" integrity="sha384-9eLZqc9ds8eNjO3TmqPeYcDj8n+Qfa4nuSiGYa6DjLNcv9BtN69ZIulL9+8CqC9Y" crossorigin="anonymous">
+          
+      
+
+      
+      
+    </head>
+
+    <body>
+        <div class="container">
+
+            <div id="mobile-navbar" class="mobile-navbar">
+              <div class="mobile-header-logo">
+                <a href="/" class="logo">CMU CSD PhD Blog</a>
+              </div>
+              <div class="mobile-navbar-icon icon-out">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            </div>
+
+            <nav id="mobile-menu" class="mobile-menu slideout-menu slideout-menu-left">
+              <ul class="mobile-menu-list">
+                
+                    <li class="mobile-menu-item">
+                        <a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;">
+                            Home
+                        </a>
+                    </li>
+                
+                    <li class="mobile-menu-item">
+                        <a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;areas">
+                            Areas
+                        </a>
+                    </li>
+                
+                    <li class="mobile-menu-item">
+                        <a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;tags">
+                            Tags
+                        </a>
+                    </li>
+                
+                    <li class="mobile-menu-item">
+                        <a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;atom.xml">
+                            RSS Feed
+                        </a>
+                    </li>
+                
+              </ul>
+            </nav>
+
+            <header id="header">
+                <div class="logo"><a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;">CMU CSD PhD Blog</a></div>
+                <nav class="menu">
+                    <ul>
+                        
+                            <li>
+                                <a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;">
+                                    Home
+                                </a>
+                            </li>
+                        
+                            <li>
+                                <a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;areas">
+                                    Areas
+                                </a>
+                            </li>
+                        
+                            <li>
+                                <a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;tags">
+                                    Tags
+                                </a>
+                            </li>
+                        
+                            <li>
+                                <a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;atom.xml">
+                                    RSS Feed
+                                </a>
+                            </li>
+                        
+                    </ul>
+                </nav>
+            </header>
+
+            <main>
+                <div class="content" id="mobile-panel">
+                    
+                        <div class="posts">
+                            
+                                <article class="post">
+                                    
+    <header class="post__header">
+        <h1 class="post__title">
+            <a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;2024&#x2F;network-usable-information&#x2F;">Measuring and Exploiting Network Usable Information</a>
+        </h1>
+        <div class="post__meta">
+            <span class="post__time">2024-04-09</span> |
+            <span class="post__author">
+              
+
+
+
+  
+  
+
+
+<a href="https:&#x2F;&#x2F;mengchillee.github.io&#x2F;" target=_blank>
+  Meng-Chieh Lee
+</a>
+
+            </span>
+            
+        </div>
+    </header>
+    
+      
+    
+    
+
+                                    <div class="post__summary">
+                                        
+                                        In large cloud service providers such as AWS, the customer provides an attributed graph and would like to perform tasks like recommendations using message-passing methods within restricted budgets.
+An attributed graph consists of both the graph structure and the node features.
+As…
+                                    </div>
+                                    <div class="read-more">
+                                        <a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;2024&#x2F;network-usable-information&#x2F;">Read more...</a>
+                                    </div>
+                                </article>
+                            
+                                <article class="post">
+                                    
+    <header class="post__header">
+        <h1 class="post__title">
+            <a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;2023&#x2F;baleen-ml-flash-caching&#x2F;">Baleen: ML admission &amp; prefetching for flash caches</a>
+        </h1>
+        <div class="post__meta">
+            <span class="post__time">2024-01-12</span> |
+            <span class="post__author">
+              
+
+
+
+  
+  
+
+
+<a href="http:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~dlwong" target=_blank>
+  Daniel Lin-Kit Wong
+</a>
+
+            </span>
+            
+        </div>
+    </header>
+    
+      
+    
+    
+
+                                    <div class="post__summary">
+                                        
+                                        
+
+Large-scale storage is still dominated by hard disks (HDDs) as they are cost-effective. However, HDDs are limited to ~100 IOs per second. Thus, modern storage systems in datacenters widely rely on flash caches to absorb backend load and reduce the number of HDDs required to sat…
+                                    </div>
+                                    <div class="read-more">
+                                        <a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;2023&#x2F;baleen-ml-flash-caching&#x2F;">Read more...</a>
+                                    </div>
+                                </article>
+                            
+                                <article class="post">
+                                    
+    <header class="post__header">
+        <h1 class="post__title">
+            <a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;2023&#x2F;mimir&#x2F;">Mimir: Finding cost-efficient storage configurations in the public cloud</a>
+        </h1>
+        <div class="post__meta">
+            <span class="post__time">2023-12-15</span> |
+            <span class="post__author">
+              
+
+
+
+  
+  
+
+
+<a href="https:&#x2F;&#x2F;hojinp.github.io&#x2F;" target=_blank>
+  Hojin Park
+</a>
+
+            </span>
+            
+        </div>
+    </header>
+    
+      
+    
+    
+
+                                    <div class="post__summary">
+                                        
+                                        In today’s landscape of diverse public cloud providers like AWS, Microsoft Azure, and Google Cloud Platform, organizations are increasingly turning to cloud computing with pay-as-you-go pricing models. Many businesses are adopting public cloud services to simplify data center man…
+                                    </div>
+                                    <div class="read-more">
+                                        <a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;2023&#x2F;mimir&#x2F;">Read more...</a>
+                                    </div>
+                                </article>
+                            
+                                <article class="post">
+                                    
+    <header class="post__header">
+        <h1 class="post__title">
+            <a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;2023&#x2F;ktn&#x2F;">Transfer Learning within a Heterogeneous Graph</a>
+        </h1>
+        <div class="post__meta">
+            <span class="post__time">2023-10-31</span> |
+            <span class="post__author">
+              
+
+
+
+  
+  
+
+
+<a href="https:&#x2F;&#x2F;www.minjiyoon.xyz" target=_blank>
+  Minji Yoon
+</a>
+
+            </span>
+            
+        </div>
+    </header>
+    
+      
+    
+    
+
+                                    <div class="post__summary">
+                                        
+                                        
+Ecosystems in industry are commonly composed of various data types in terms of data modalities or feature distributions. Heterogeneous graphs (HGs) present these multimodal data systems in a unified view by defining multiple types of nodes and edges — for instance, e-commerce ne…
+                                    </div>
+                                    <div class="read-more">
+                                        <a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;2023&#x2F;ktn&#x2F;">Read more...</a>
+                                    </div>
+                                </article>
+                            
+                                <article class="post">
+                                    
+    <header class="post__header">
+        <h1 class="post__title">
+            <a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;2023&#x2F;fifo-lru&#x2F;">FIFO is Better than LRU: the Power of Lazy Promotion and Quick Demotion</a>
+        </h1>
+        <div class="post__meta">
+            <span class="post__time">2023-09-20</span> |
+            <span class="post__author">
+              
+
+
+
+  
+  
+
+
+<a href="https:&#x2F;&#x2F;junchengyang.com" target=_blank>
+  Juncheng Yang
+</a>
+
+            </span>
+            
+        </div>
+    </header>
+    
+      
+    
+    
+
+                                    <div class="post__summary">
+                                        
+                                        
+TL;DR: 
+Historically FIFO-based algorithms are thought to be less efficient (having higher miss ratios) than LRU-based algorithms.
+In this blog, we introduce two techniques, lazy promotion, which promotes objects only at eviction time, and quick demotion, which evicts most new o…
+                                    </div>
+                                    <div class="read-more">
+                                        <a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;2023&#x2F;fifo-lru&#x2F;">Read more...</a>
+                                    </div>
+                                </article>
+                            
+                                <article class="post">
+                                    
+    <header class="post__header">
+        <h1 class="post__title">
+            <a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;2023&#x2F;rust-verification-with-verus&#x2F;">Verus: A tool for verified systems code in Rust</a>
+        </h1>
+        <div class="post__meta">
+            <span class="post__time">2023-08-03</span> |
+            <span class="post__author">
+              
+
+
+
+  
+  
+
+
+<a href="https:&#x2F;&#x2F;www.andrew.cmu.edu&#x2F;user&#x2F;thance&#x2F;" target=_blank>
+  Travis Hance
+</a>
+
+            </span>
+            
+        </div>
+    </header>
+    
+      
+    
+      
+    
+    
+
+                                    <div class="post__summary">
+                                        
+                                        Part of the challenge (and fun) of low-level systems code is in the optimizations they employ:
+developers might use manual memory management, they might use bit-packing and bit-twiddling optimizations,
+or they might use multi-threading to speed up their code.
+When dealing with su…
+                                    </div>
+                                    <div class="read-more">
+                                        <a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;2023&#x2F;rust-verification-with-verus&#x2F;">Read more...</a>
+                                    </div>
+                                </article>
+                            
+                                <article class="post">
+                                    
+    <header class="post__header">
+        <h1 class="post__title">
+            <a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;2023&#x2F;provably-safe-sandboxing-wasm&#x2F;">Provably-Safe Sandboxing with WebAssembly</a>
+        </h1>
+        <div class="post__meta">
+            <span class="post__time">2023-07-25</span> |
+            <span class="post__author">
+              
+
+
+
+  
+  
+
+
+<a href="https:&#x2F;&#x2F;www.jaybosamiya.com&#x2F;" target=_blank>
+  Jay Bosamiya
+</a>
+
+            </span>
+            
+        </div>
+    </header>
+    
+      
+    
+    
+
+                                    <div class="post__summary">
+                                        
+                                        
+What if you could run untrusted code and still be able to sleep at night, safe and sound?
+
+
+Disclaimer: our award-winning work [1] can only calm your unsafe-software related fears; we recommend complementing this by additionally checking for monsters under your bed, and leaving …
+                                    </div>
+                                    <div class="read-more">
+                                        <a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;2023&#x2F;provably-safe-sandboxing-wasm&#x2F;">Read more...</a>
+                                    </div>
+                                </article>
+                            
+                                <article class="post">
+                                    
+    <header class="post__header">
+        <h1 class="post__title">
+            <a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;2023&#x2F;convertible-codes&#x2F;">Code Conversion in Distributed Storage Systems</a>
+        </h1>
+        <div class="post__meta">
+            <span class="post__time">2023-07-19</span> |
+            <span class="post__author">
+              
+
+
+
+  
+  
+
+
+<a href="https:&#x2F;&#x2F;cs.cmu.edu&#x2F;~fmaturan" target=_blank>
+  Francisco Maturana
+</a>
+
+            </span>
+            
+        </div>
+    </header>
+    
+      
+    
+      
+    
+    
+
+                                    <div class="post__summary">
+                                        
+                                        
+
+Figure 1: diagram showing the code conversion process in a distributed storage system.
+
+Today’s society is data-driven, and many of the applications that society relies on require storing ever-increasing amounts of data.
+To this end, distributed storage systems have become the …
+                                    </div>
+                                    <div class="read-more">
+                                        <a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;2023&#x2F;convertible-codes&#x2F;">Read more...</a>
+                                    </div>
+                                </article>
+                            
+                                <article class="post">
+                                    
+    <header class="post__header">
+        <h1 class="post__title">
+            <a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;2023&#x2F;quantum-physicists-method&#x2F;">The Quantum Physicist&#x27;s Method of Resource Analysis</a>
+        </h1>
+        <div class="post__meta">
+            <span class="post__time">2023-06-06</span> |
+            <span class="post__author">
+              
+
+
+
+  
+  
+
+
+<a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~davidkah&#x2F;" target=_blank>
+  David M Kahn
+</a>
+
+            </span>
+            
+        </div>
+    </header>
+    
+      
+    
+    
+
+                                    <div class="post__summary">
+                                        
+                                        The physicist’s method is a powerful framework for cost analysis that
+many a computer scientist will learn at some point in their undergraduate career.
+However, its high-level description leaves some practical gaps, especially concerning
+how to actually bookkeep its finer details…
+                                    </div>
+                                    <div class="read-more">
+                                        <a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;2023&#x2F;quantum-physicists-method&#x2F;">Read more...</a>
+                                    </div>
+                                </article>
+                            
+                                <article class="post">
+                                    
+    <header class="post__header">
+        <h1 class="post__title">
+            <a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;2023&#x2F;intermediate-robustness&#x2F;">Robustness between the worst and average case</a>
+        </h1>
+        <div class="post__meta">
+            <span class="post__time">2023-04-21</span> |
+            <span class="post__author">
+              
+
+
+
+  
+  
+
+
+<a href="https:&#x2F;&#x2F;leslierice1.github.io&#x2F;" target=_blank>
+  Leslie Rice
+</a>
+
+            </span>
+            
+        </div>
+    </header>
+    
+      
+    
+    
+
+                                    <div class="post__summary">
+                                        
+                                        As machine learning systems become increasingly implemented in safety-critical applications, such as autonomous driving and healthcare, we need to ensure these systems are reliable and trustworthy. For example, we might wish to determine whether a car’s camera-based autopilot sys…
+                                    </div>
+                                    <div class="read-more">
+                                        <a href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;2023&#x2F;intermediate-robustness&#x2F;">Read more...</a>
+                                    </div>
+                                </article>
+                            
+                        </div>
+                        <nav class="pagination">
+                            
+                            
+                                <a class="next" href="https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;~csd-phd-blog&#x2F;page&#x2F;2&#x2F;">Next ›</a>
+                            
+                        </nav>
+                    
+                </div>
+            </main>
+
+            
+            
+        </div>
+
+      
+          <script type="text/javascript" src="https://www.cs.cmu.edu/~csd-phd-blog/even.js" ></script>
+      
+    </body>
+
+    <!-- Blog infrastructure set up by Jay Bosamiya, https://www.jaybosamiya.com/ -->
+
+</html>

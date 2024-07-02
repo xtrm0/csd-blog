@@ -1,0 +1,704 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+	<title>CMU CSD PhD Blog - Artificial Intelligence</title>
+	<link href="https://www.cs.cmu.edu/~csd-phd-blog/areas/artificial-intelligence/atom.xml" rel="self" type="application/atom+xml"/>
+  <link href="https://www.cs.cmu.edu/~csd-phd-blog/"/>
+	<generator uri="https://www.getzola.org/">Zola</generator>
+	<updated>2024-04-09T00:00:00+00:00</updated>
+	<id>https://www.cs.cmu.edu/~csd-phd-blog/areas/artificial-intelligence/atom.xml</id>
+	<entry xml:lang="en">
+		<title>Measuring and Exploiting Network Usable Information</title>
+		<published>2024-04-09T00:00:00+00:00</published>
+		<updated>2024-04-09T00:00:00+00:00</updated>
+		<link href="https://www.cs.cmu.edu/~csd-phd-blog/2024/network-usable-information/" type="text/html"/>
+		<id>https://www.cs.cmu.edu/~csd-phd-blog/2024/network-usable-information/</id>
+		<content type="html">&lt;p&gt;In large cloud service providers such as AWS, the customer provides an attributed graph and would like to perform tasks like recommendations using message-passing methods within restricted budgets.
+An attributed graph consists of both the graph structure and the node features.
+As one of the message-passing methods, Graph Neural Networks (GNNs) are commonly used for graph tasks by propagating node features through the graph structure.
+However, it is possible that not all the information in the provided graph is usable for solving the task.
+Training a GNN would thus be a waste of time and resources for the customer.
+Therefore, we aim to answer two questions:&lt;&#x2F;p&gt;
+&lt;ol&gt;
+&lt;li&gt;Given a graph with node features, how can we tell whether utilizing both graph structure and node features, will yield better performance than utilizing either of them separately?&lt;&#x2F;li&gt;
+&lt;li&gt;How can we know what information in the graph (if any) is usable to solve the tasks, namely, node classification and link prediction? &lt;&#x2F;li&gt;
+&lt;&#x2F;ol&gt;
+&lt;p&gt;Our goal is to design a metric for measuring how informative the graph structure and node features are for the task at hand, which we call network usable information (NUI).&lt;&#x2F;p&gt;
+&lt;!-- However, in real-world scenarios, it is possible that neither the graph structure nor the node features are usable for solving the task.
+In these scenarios, training a GNN will be a waste of time and resources, especially for large cloud service providers like AWS, whose customers would like to perform the tasks with restricted budgets in a short time.  --&gt;
+&lt;p&gt;In this blog post, we introduce how to measure the information in the graph, and to exploit it for solving the graph tasks. This blog post is based on our research paper, “NetInfoF Framework: Measuring and Exploiting Network Usable Information” [1], presented at ICLR 2024.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;what-is-an-attributed-graph&quot;&gt;What is an attributed graph?&lt;&#x2F;h2&gt;
+&lt;figure&gt;
+&lt;img src=&quot;.&#x2F;figure1.png&quot; alt=&quot;attributed graph&quot; width=&quot;500&quot;&#x2F;&gt;
+&lt;figcaption&gt;
+Figure 1. An example of an attributed social network graph, where the nodes denote the users, and the edges denote whether two users are friends.
+&lt;&#x2F;figcaption&gt;
+&lt;&#x2F;figure&gt;
+&lt;p&gt;A graph is a data structure that includes nodes and edges, representing the connections between nodes.
+An attributed graph indicates that each node in the graph has a set of features.
+For example, Figure 1 shows the attributed graph for a social network.
+The nodes represent the users, illustrated as circles with school icons.
+The edges indicate whether two users are friends, illustrated as black lines connecting circles.
+A node might also contain additional information:&lt;&#x2F;p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;Node ID&lt;&#x2F;strong&gt;: is illustrated as a thumbnail image of the user along with the user’s text name.&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;Node attributes&#x2F;features&lt;&#x2F;strong&gt;: represent whether the user is located in the US and whether the user likes to bike, illustrated as a \( 2 \times 2 \) table. &lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;Node label&lt;&#x2F;strong&gt;: signify the user’s respective college, categorized into two groups represented by blue and red colors with logos: CMU or NCTU. &lt;&#x2F;li&gt;
+&lt;&#x2F;ol&gt;
+&lt;p&gt;In fact, node labels are similar to node features, but they often contain missing values, which we are interested in predicting.&lt;&#x2F;p&gt;
+&lt;!-- The nodes (circles with school icons) represent the users, and the edges (black lines connecting circles) indicate whether two users are friends.
+The node IDs are represented by the thumbnail person images and the text names.
+The node attributes&#x2F;features of users (\\( 2 \times 2 \\) tables) are whether they are located in the US and whether they like to bike. 
+The node labels of users, classified into two categories represented by blue and red colors, signify their respective colleges, CMU or NCTU.
+In fact, node labels are similar to node features, but they are the ones with missing values and we are interested in predicting them. --&gt;
+&lt;figure&gt;
+&lt;img src=&quot;.&#x2F;figure2.png&quot; alt=&quot;mathematical representation of graph&quot; width=&quot;500&quot;&#x2F;&gt;
+&lt;figcaption&gt;
+Figure 2. The mathematical representation of the attributed graph, including an adjacency matrix, node features, and node labels. The red question mark denotes unknown.
+&lt;&#x2F;figcaption&gt;
+&lt;&#x2F;figure&gt;
+&lt;p&gt;In Figure 2, the graph structure can be represented by an adjacency matrix, where 1 denotes the presence of an edge between two nodes, and 0 denotes no edge. 
+The node features are also represented by a matrix, where each feature is binary in the example, but it can also be continuous.
+The node labels are represented by a matrix with one-hot encoding of the class label.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;what-are-the-common-graph-tasks&quot;&gt;What are the common graph tasks?&lt;&#x2F;h2&gt;
+&lt;p&gt;We consider the two common graph tasks:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Node Classification&lt;&#x2F;strong&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;em&gt;Goal:&lt;&#x2F;em&gt; Predict the classes of the unlabeled nodes, while some labeled nodes are given.&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;em&gt;Example:&lt;&#x2F;em&gt; Given a social network with features, can we guess which college Bob goes to, i.e., the label of the gray node in Figure 1?&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;Link Prediction&lt;&#x2F;strong&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;em&gt;Goal:&lt;&#x2F;em&gt; Predict the potential additional edges in the graph.&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;em&gt;Example:&lt;&#x2F;em&gt; Given a social network with features, can we guess whether David and Grace could become friends, i.e., the potential additional red-dash line in Figure 1? &lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;h2 id=&quot;what-are-message-passing-methods&quot;&gt;What are message-passing methods?&lt;&#x2F;h2&gt;
+&lt;!-- | U&lt;sub&gt;[n×r]&lt;&#x2F;sub&gt; | Left singular vectors of adjacency matrix | --&gt;
+&lt;!-- | r | Rank for matrix decomposition | --&gt;
+&lt;figure&gt;
+&lt;img src=&quot;.&#x2F;figure3.png&quot; alt=&quot;node embedding&quot; width=&quot;500&quot;&#x2F;&gt;
+&lt;figcaption&gt;
+Figure 3. Illustration of how the nodes in a given graph projected into low-dimensional embedding space. The nodes that are more similar in the graph are closer in the embedding space.
+&lt;&#x2F;figcaption&gt;
+&lt;&#x2F;figure&gt;
+&lt;p&gt;Message-passing methods utilize the graph structure to propagate information from the neighbors of a node to the node itself. 
+Known as sum-product message-passing, belief propagation methods [2, 3] directly perform inference on the graph through several propagation iterations. 
+Although they are fast and effective because they require neither parameters nor training, belief propagation methods are mainly designed to solve node classification problems based solely on the graph structure and usually do not consider node features.&lt;&#x2F;p&gt;
+&lt;!-- To properly handle the interaction between node classes, Günnemann et al. [2] assumes that a \\( c \times c \\) compatibility matrix is given by the domain expert, while Lee et al. [3] estimates it with the given graph data.  --&gt;
+&lt;p&gt;Another variety of message-passing methods, Graph Neural Networks (GNNs) [4], are a class of deep learning models. 
+They are commonly used to generate low-dimensional embeddings of nodes to perform graph tasks by learning end-to-end with a training objective.
+As shown in Figure 3, the nodes that are better connected in the graph are expected to have closer embeddings in the low-dimensional space.&lt;&#x2F;p&gt;
+&lt;p&gt;Some studies remove the non-linear functions in GNNs, and still achieve good performance, which we call linear GNNs [5, 6].
+One of the many advantages of linear GNNs is that their node embeddings are available prior to model training. 
+A comprehensive study on linear GNNs can be found in [6].&lt;&#x2F;p&gt;
+&lt;!-- The function of a two-layer Graph Convolutional Network (GCN) [4] can be written as:
+\\[ \hat{Y} = A\sigma(AXW_{1})W_{2}, \\]
+where \\( A \\) is the normalized adjacency matrix with self-loop, \\( X \\) is the node features, \\( W_i \\) is the learnable matrix for the \\( i \\)-th layer, and \\( \sigma \\) is the non-linear activation function, typically a sigmoid or a ReLU.
+By removing &amp;sigma; from the above equation, it reduces to:
+\\[ \hat{Y} = A^{2}XW, \\]
+which is a linear model with a node embedding \\( A^{2}X \\) that can be precomputed. This particular model is Simple Graph Convolution (SGC) [5], which is the first linear GNN model. One of the many advantages of linear GNNs is that their node embeddings are available prior to model training. A comprehensive study on linear GNNs can be found in [6]. --&gt;
+&lt;!-- | Symbol | Definition |
+| -------- | -------- |
+| \\( A_{[n \times n]} \\) | Adjacency matrix |
+| \\( X_{[n \times f]} \\) | Node feature matrix |
+| \\( W_{[f \times c]} \\) | Learnable parameter matrix in linear GNNs |
+| \\( \hat{Y}_{[n \times c]} \\) | Predicted node label matrix |
+| \\( n \\) | Number of nodes |
+| \\( f \\) | Number of features |
+| \\( c \\) | Number of classes | --&gt;
+&lt;h2 id=&quot;measuring-nui-would-a-message-passing-method-work-in-a-given-setting&quot;&gt;&lt;em&gt;Measuring NUI:&lt;&#x2F;em&gt; Would a message-passing method work in a given setting?&lt;&#x2F;h2&gt;
+&lt;figure&gt;
+&lt;img src=&quot;.&#x2F;figure4.png&quot; alt=&quot;scenarios&quot; width=&quot;400&quot;&#x2F;&gt;
+&lt;figcaption&gt;
+Figure 4. Scenarios in which the message-passing method may not work well. (a): The graph structure exhibits no network effects. (b): Node features are not correlated with node labels.
+&lt;&#x2F;figcaption&gt;
+&lt;&#x2F;figure&gt;
+&lt;p&gt;Given an attributed graph, how can we measure the network usable information (NUI)? The message-passing method may not work well in the following scenarios:&lt;&#x2F;p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;No network effects:&lt;&#x2F;strong&gt; means that the graph structure is not useful to solve the graph task. In Figure 4(a), since every labeled node has one blue and one red neighbor, we cannot infer the label for Bob by examining its neighbors.&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;Useless node features:&lt;&#x2F;strong&gt; means that the node features are not useful to solve the graph task. In Figure 4(b), we can see that whether a user likes to bike is not correlated with the user’s university.&lt;&#x2F;li&gt;
+&lt;&#x2F;ol&gt;
+&lt;p&gt;If any of these scenarios is present, a message-passing method is likely to fail in inferring the unknown node label, i.e., Bob’s college.&lt;&#x2F;p&gt;
+&lt;figure&gt;
+&lt;img src=&quot;.&#x2F;figure5.png&quot; alt=&quot;structural and neighbors&#x27; feature embedding&quot; width=&quot;800&quot;&#x2F;&gt;
+&lt;figcaption&gt;
+Figure 5. Illustration of structural embedding (left) and neighbors&#x27; feature embedding (right). (a): SVD is conducted on the adjacency matrix to extract structural embedding. (b): Messages passed from a node&#x27;s neighbors are aggregated to generate its node embedding.
+&lt;&#x2F;figcaption&gt;
+&lt;&#x2F;figure&gt;
+&lt;p&gt;We focus on analyzing whether GNNs will perform well in a given setting, which is an important problem in the industry. 
+The reason is that, for large cloud service providers, the customer provides them with an attributed graph and requests them to solve the graph task (e.g., recommendation) using GNNs within restricted budgets. 
+However, if the given graph lacks network usable information (NUI), the resources spent on training GNNs will be wasted. 
+Therefore, our method serves as a preliminary tool to determine whether resources should be allocated for training expensive deep models.&lt;&#x2F;p&gt;
+&lt;p&gt;A straightforward way is to analyze the node embedding of the given graph generated by GNNs, but this is only available after training, which is expensive and time-consuming. 
+For this reason, we propose to analyze the derived node embedding in linear GNNs, which can be precomputed before model training. 
+More specifically, we derive three types of node embedding that can comprehensively represent the information of the given graph, namely:&lt;&#x2F;p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;Structural embedding (\( U \)):&lt;&#x2F;strong&gt; for the information of the graph structure. It is extracted by decomposing the adjacency matrix with singular value decomposition (SVD). Intuitively, the left singular vectors U give the information of the node community. For example, in Figure 5(a), U identifies that the first three users belong to the blue community, while the last four belong to the red community. This is useful when the node features are not useful to solve the graph task.&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;Feature embedding (\( F \)):&lt;&#x2F;strong&gt; for the information of the node features. It consists of the original node features after dimensional reduction. This is useful when there are no network effects, i.e. the graph structure is not useful to solve the graph task.&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;Neighbors’ feature embedding (\( S \)):&lt;&#x2F;strong&gt; for the information of the features aggregated from the neighbors. As shown in Figure 5(b), the messages are passed and aggregated from the neighbors for two steps. The intuition is that, in addition to the information from the user, the user’s neighbors also provide useful information to the task. Leveraging their information leads to better performance on the graph task. This is useful when both the graph structure and the node features are useful to solve the graph task.&lt;&#x2F;li&gt;
+&lt;&#x2F;ol&gt;
+&lt;p&gt;Once we have the embedding that can represent the information of the nodes of the graph, we propose NetInfoF_Score, and link the metrics of graph information and task performance with the following proposed theorem:&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;strong&gt;Definition 1&lt;&#x2F;strong&gt; (NetInfoF_Score of \( Y \) given \( X \)). 
+&lt;em&gt;Given two discrete random variables \( X \) and \( Y \), NetInfoF_Score \( s \) of \( Y \) given \( X \) is defined as:&lt;&#x2F;em&gt;
+\[ s = 2^{-H(Y|X)} \]
+&lt;em&gt;where \( H(\cdot | \cdot) \) denotes the conditional entropy [7].&lt;&#x2F;em&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;We prove that NetInfoF_Score low-bounds the accuracy:&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;strong&gt;Theorem 1&lt;&#x2F;strong&gt; (NetInfoF_Score). 
+&lt;em&gt;Given two discrete random variables \( X \) and \( Y \), NetInfoF_Score \( s \) of \( Y \) given \( X \) lower-bounds the accuracy:&lt;&#x2F;em&gt;
+\[ s = 2^{-H(Y|X)} \leq accuracy(Y|X) = \sum_{x \in X}{\max_{y \in Y}{p_{x, y}}} \]
+&lt;em&gt;where \( p_{x, y} \) is the joint probability of \( x \) and \( y \).&lt;&#x2F;em&gt;&lt;&#x2F;p&gt;
+&lt;!-- &lt;figure&gt;
+&lt;img src=&quot;.&#x2F;eqn1.png&quot; alt=&quot;Definition and theorem&quot; width=&quot;800&quot;&#x2F;&gt;
+&lt;&#x2F;figure&gt; --&gt;
+&lt;p&gt;The proof is in [1].
+The intuition behind this theorem is that the conditional entropy of \( Y \) (e.g. labels) given \( X \) (e.g. “like biking”), is a strong indicator of how good of a predictor \( X \) is, to guess the target \( Y \).
+It provides an advantage to NetInfoF_Score by giving it an intuitive interpretation, which is the lower-bound of the accuracy. When there is little usable information for the task, the value of NetInfoF_Score is close to random guessing.&lt;&#x2F;p&gt;
+&lt;figure&gt;
+&lt;img src=&quot;.&#x2F;figure6.png&quot; alt=&quot;Emperical study&quot; width=&quot;500&quot;&#x2F;&gt;
+&lt;figcaption&gt;
+Figure 6. Our theorem holds, where NetInfoF_Score is always less than or equal to validation accuracy.
+&lt;&#x2F;figcaption&gt;
+&lt;&#x2F;figure&gt;
+&lt;p&gt;In Figure 6, each point represents the accuracy and NetInfoF_Score obtained by solving graph tasks using one type of node embedding. 
+We find that NetInfoF_Score lower-bounds the accuracy of the given graph task, as expected. 
+If an embedding has no usable information to solve the given task, NetInfoF_Score gives a score close to random guessing (see lower left corner in Figure 6).
+The details of the experiment can be found in [1].&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;exploiting-nui-how-to-solve-graph-tasks&quot;&gt;&lt;em&gt;Exploiting NUI:&lt;&#x2F;em&gt; How to solve graph tasks?&lt;&#x2F;h2&gt;
+&lt;p&gt;In this blog, we focus on explaining how to solve node classification. How to solve link prediction is more complicated, and the details can be found in [1].&lt;&#x2F;p&gt;
+&lt;p&gt;To solve node classification, we concatenate different types of embedding, and the input of the classifier is as follows:
+\[ U \parallel F \parallel S , \]
+where \( \parallel \) is concatenation, \( U \) is the structural embedding, \( F \) is the feature embedding, and \( S \) is the neighbors’ feature embedding. Among all the choices, we use logistic regression as the node classifier, as it is fast and interpretable.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;how-well-does-our-proposed-method-perform&quot;&gt;How well does our proposed method perform?&lt;&#x2F;h2&gt;
+&lt;figure&gt;
+&lt;img src=&quot;.&#x2F;table1.png&quot; alt=&quot;Node classification&quot; width=&quot;1000&quot;&#x2F;&gt;
+&lt;&#x2F;figure&gt;
+&lt;p&gt;As shown in Table 1, applied on 12 real-world graphs, NetInfoF outperforms GNN baselines in 7 out of 12 datasets on node classification.&lt;&#x2F;p&gt;
+&lt;figure&gt;
+&lt;img src=&quot;.&#x2F;figure7.png&quot; alt=&quot;NetInfoF_Score on real-world datasets&quot; width=&quot;250&quot;&#x2F;&gt;
+&lt;figcaption&gt;
+Figure 7. NetInfoF_Score highly correlates to test performance in real-world datasets. Each point denotes the result of one type of embedding in each dataset.
+&lt;&#x2F;figcaption&gt;
+&lt;&#x2F;figure&gt;
+&lt;p&gt;In Figure 7, NetInfoF_Score is highly correlated with test performance on node classification. 
+This indicates that NetInfoF_Score is a reliable measure for deciding whether to use a GNN on the given graph or not in a short time, without any model training.
+Noting that although our theorem proves that NetInfoF_Score low-bounds &lt;em&gt;training&lt;&#x2F;em&gt; accuracy, it is possible for &lt;em&gt;testing&lt;&#x2F;em&gt; accuracy to be lower than the NetInfoF_Score (blue points below 45 degree line in Figure 7).&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;conclusion&quot;&gt;Conclusion&lt;&#x2F;h2&gt;
+&lt;p&gt;In this blog post, we investigate the problem of identifying whether a message-passing method would work well on a given graph. 
+To solve this problem, we introduce NetInfoF, to measure and exploit the network usable information (NUI). 
+Applied on real-world graphs, NetInfoF not only correctly mesures NUI with NetInfoF_Score, but also wins 7 out of 12 times on node classification.&lt;&#x2F;p&gt;
+&lt;p&gt;Please find more details in our paper [1].&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;references&quot;&gt;References&lt;&#x2F;h2&gt;
+&lt;p&gt;[1] Lee, M. C., Yu, H., Zhang, J., Ioannidis, V. N., Song, X., Adeshina, S., … &amp;amp; Faloutsos, C. NetInfoF Framework: Measuring and Exploiting Network Usable Information. International Conference on Learning Representations (ICLR), 2024.&lt;&#x2F;p&gt;
+&lt;p&gt;[2] Koutra, D., Ke, T. Y., Kang, U., Chau, D. H., Pao, H. K. K., &amp;amp; Faloutsos, C. Unifying guilt-by-association approaches: Theorems and fast algorithms. Machine Learning and Knowledge Discovery in Databases: European Conference (ECML PKDD), 2011&lt;&#x2F;p&gt;
+&lt;p&gt;[3] Günnemann, W. G. S., Koutra, D., &amp;amp; Faloutsos, C. Linearized and Single-Pass Belief Propagation. VLDB Endowment, 2015.&lt;&#x2F;p&gt;
+&lt;p&gt;[4] Kipf, T. N., &amp;amp; Welling, M. Semi-Supervised Classification with Graph Convolutional Networks. International Conference on Learning Representations (ICLR), 2017.&lt;&#x2F;p&gt;
+&lt;p&gt;[5] Wu, F., Souza, A., Zhang, T., Fifty, C., Yu, T., &amp;amp; Weinberger, K. Simplifying Graph Convolutional Networks. PMLR International Conference on Machine Learning (ICML), 2019.&lt;&#x2F;p&gt;
+&lt;p&gt;[6] Yoo, J., Lee, M. C., Shekhar, S., &amp;amp; Faloutsos, C. Less is More: SlimG for Accurate, Robust, and Interpretable Graph Mining. ACM SIGKDD Conference on Knowledge Discovery and Data Mining (KDD), 2023.&lt;&#x2F;p&gt;
+&lt;p&gt;[7] Conditional entropy. In Wikipedia. &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;en.wikipedia.org&#x2F;wiki&#x2F;Conditional_entropy&quot;&gt;https:&#x2F;&#x2F;en.wikipedia.org&#x2F;wiki&#x2F;Conditional_entropy&lt;&#x2F;a&gt;, 2024.&lt;&#x2F;p&gt;
+</content>
+	</entry>
+	<entry xml:lang="en">
+		<title>Transfer Learning within a Heterogeneous Graph</title>
+		<published>2023-10-31T00:00:00+00:00</published>
+		<updated>2023-10-31T00:00:00+00:00</updated>
+		<link href="https://www.cs.cmu.edu/~csd-phd-blog/2023/ktn/" type="text/html"/>
+		<id>https://www.cs.cmu.edu/~csd-phd-blog/2023/ktn/</id>
+		<content type="html">&lt;h3 id=&quot;can-we-transfer-knowledge-between-different-data-types-using-their-connectivity-information&quot;&gt;Can we transfer knowledge between different data types using their connectivity information?&lt;&#x2F;h3&gt;
+&lt;p&gt;Ecosystems in industry are commonly composed of various data types in terms of data modalities or feature distributions. &lt;strong&gt;Heterogeneous graphs&lt;&#x2F;strong&gt; (HGs) present these multimodal data systems in a unified view by defining multiple types of nodes and edges — for instance, e-commerce networks with (&lt;em&gt;user, product, review&lt;&#x2F;em&gt;) nodes or video platforms with (&lt;em&gt;channel, user, video, comment&lt;&#x2F;em&gt;) nodes. &lt;strong&gt;Heterogeneous graph neural networks&lt;&#x2F;strong&gt; (HGNNs) learn node embeddings, which summarize each node’s heterogeneous local structure into a vector. Unfortunately, there is a &lt;strong&gt;label imbalance&lt;&#x2F;strong&gt; issue between different node types in real-world HGs. For instance, publicly available content node types such as product nodes are abundantly labeled, whereas labels for user or account nodes may not be available due to privacy restrictions. Because of this, label-scarce node types cannot exploit HGNNs, hampering the broader applicability of HGNNs.&lt;&#x2F;p&gt;
+&lt;p&gt;In this blog, we introduce how to pre-train an HGNN model on label-abundant node types and then transfer the model to label-scarce node types using relational information given in HGs. You can find details of the work in our paper “&lt;em&gt;Zero-shot Transfer Learning within a Heterogeneous Graph via Knowledge Transfer Networks&lt;&#x2F;em&gt;” [1], presented at NeurIPS 2022.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;what-is-a-heterogeneous-graph-hg&quot;&gt;What is a heterogeneous graph (HG)?&lt;&#x2F;h2&gt;
+&lt;figure&gt;
+&lt;img src=&quot;.&#x2F;figure1.png&quot; alt=&quot;e-commerce heterogeneous graph&quot; width=&quot;400&quot;&#x2F;&gt;
+&lt;figcaption&gt;Figure 1. E-commerce heterogeneous graph: Can we transfer knowledge from label-abundant node types (e.g., products) to zero-labeled node types (e.g., users) through relational information given in a heterogeneous graph?
+&lt;&#x2F;figcaption&gt;
+&lt;&#x2F;figure&gt;
+&lt;p&gt;An HG is composed of multiple node and edge types. Figure 1 shows an e-commerce network presented as an HG. In e-commerce, “users” purchase “products” and write “reviews”. HG presents this ecosystem using three node types (“user”, “product”, “review”) and three edge types (“user-buy-product”, “user-write-review”, review-on-product”). Individual products, users, and reviews are then presented as nodes and their relationships as edges in the HG with the corresponding node&#x2F;edge types.&lt;&#x2F;p&gt;
+&lt;p&gt;In addition to all relational information, HGs are commonly provided with &lt;em&gt;input node attributes&lt;&#x2F;em&gt; that summarize each node’s information. For instance, product nodes could have product images as input node attributes, while review nodes could have review texts as their input attributes. As in the example, input node attributes could have different modalities across different node types.  The goal is to predict &lt;em&gt;node labels&lt;&#x2F;em&gt; on each node, such as the category of each product or the category each user is most interested in.&lt;&#x2F;p&gt;
+&lt;p&gt;In the following section, we introduce the main challenge we face while training HGNNs to predict labels using input node attributes and relational information from HGs.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;heterogeneous-graph-neural-networks-hgnns-and-label-scarcity-issues&quot;&gt;Heterogeneous graph neural networks (HGNNs) and label scarcity issues&lt;&#x2F;h2&gt;
+&lt;p&gt;HGNNs compute node embeddings that summarize each node’s local graph structures including the node and its neighbor’s input attribute distributions. Node embeddings are then fed into a classifier to predict each node’s label. To train an HGNN model and a classifier to predict labels for a specific node type, we require a good amount of labels for the node type.&lt;&#x2F;p&gt;
+&lt;p&gt;A common issue in real-world applications of deep learning is label scarcity. With their diverse node types, HGNNs are even more likely to face this challenge. For instance, publicly available content node types are abundantly labeled, whereas labels for user nodes may not be available due to privacy restrictions. This means that in most standard training settings, HGNN models can only learn to make good inferences for a few label-abundant node types and can usually not make any inferences for the remaining node types, given the absence of any labels for them.&lt;&#x2F;p&gt;
+&lt;p&gt;To solve this label scarcity issue, we will use a technique called zero-shot transfer learning that improves the performance of a model on a zero-labeled domain.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;transfer-learning-on-heterogeneous-graphs&quot;&gt;Transfer Learning on Heterogeneous Graphs&lt;&#x2F;h2&gt;
+&lt;p&gt;To improve the performance on a zero-labeled “target” domain, transfer learning exploits the knowledge earned from a related “source” domain, which has adequate labeled data. For instance, transfer learning on heterogeneous graphs first trains an HGNN model on the source domain using their labels, then reuses the HGNN model on the target domain.&lt;&#x2F;p&gt;
+&lt;p&gt;In order to apply transfer learning on heterogeneous graphs to solve the label scarcity issue we described above, it is clear the target domain should be the zero-labeled node types. The question remained of what would be the source domain. Previous works commonly set the source domain as the same type of nodes but located in an external HG, assuming those nodes are abundantly labeled (Figure 2). For instance, the source domain is user nodes in the Yelp review graph, while the target domain is user nodes in the Amazon e-commerce graph. This approach, also known as &lt;em&gt;graph-to-graph transfer learning&lt;&#x2F;em&gt;, pre-trains an HGNN model on the external HG and then runs the model on the original label-scarce HG [2, 3].&lt;&#x2F;p&gt;
+&lt;center&gt;
+&lt;figure&gt;
+&lt;img src=&quot;.&#x2F;figure2.png&quot; alt=&quot;graph-to-graph transfer learning&quot; width=&quot;600&quot;&#x2F;&gt;
+&lt;figcaption&gt;Figure 2. Illustration of graph-to-graph transfer learning on heterogeneous graph.&lt;&#x2F;figcaption&gt;
+&lt;&#x2F;figure&gt;
+&lt;&#x2F;center&gt;
+&lt;p&gt;However, this approach is not applicable in many real-world scenarios for three reasons. First, any external HG that could be used in a graph-to-graph transfer learning setting would almost surely be &lt;em&gt;proprietary&lt;&#x2F;em&gt;, thereby, making it hard to get access to. Second, even if practitioners could obtain access to an external HG, it is unlikely that the &lt;em&gt;distribution of the external HG&lt;&#x2F;em&gt; would match our target HG well enough to apply transfer learning. Finally, node types suffering from &lt;em&gt;label scarcity&lt;&#x2F;em&gt; are likely to suffer the same issue on other HGs. For instance, user nodes on the external HG also have scarce labels with privacy constraints.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;our-approach-transfer-learning-between-node-types-within-a-heterogeneous-graph&quot;&gt;Our approach: transfer learning between node types within a heterogeneous graph&lt;&#x2F;h2&gt;
+&lt;p&gt;To overcome the limitation of usage of external HGs for transfer learning, we introduce a practical source domain, &lt;em&gt;other node types with abundant labels located on the same HG&lt;&#x2F;em&gt;. Instead of using extra HGs, we transfer knowledge across different types of nodes within a single HG assumed to be fully owned by the practitioners. More specifically, we first pre-train an HGNN model and a classifier on a label-abundant “source” node type. Then, we reuse the models on the zero-labeled “target” node types located in the same HG without additional finetuning. The one requirement for this approach is that the source and target node types share the same label set. This requirement is frequently satisfied in real-world settings. For instance, product nodes have a label set describing product categories, and user nodes share the same label set describing their favorite shopping categories in e-commerce HGs.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;main-technical-challenge&quot;&gt;Main technical challenge&lt;&#x2F;h2&gt;
+&lt;p&gt;We now describe the main challenge in realizing our approach. We cannot directly reuse the pretrained HGNN and classifier on the target node type as described above because HGNN maps the source and target embeddings into the different embedding spaces.&lt;&#x2F;p&gt;
+&lt;figure&gt;
+&lt;img src=&quot;.&#x2F;figure3.png&quot; alt=&quot;l2 norm of gradients passed to each module in the HGNN&quot; width=&quot;450&quot;&#x2F;&gt;
+&lt;figcaption&gt;
+Figure 3. The L2 norm of gradients passed to each module in the HGNN while pretraining on the source node type. Green and Red lines show large amounts of gradients passed to source node type-specific modules, while blue and orange lines show little or no gradients passed to target type-specific modules.
+&lt;&#x2F;figcaption&gt;
+&lt;&#x2F;figure&gt;
+&lt;p&gt;This happens because of one crucial characteristic of HGNNs — HGNNs are composed of modules specialized to each node type and use distinct sets of modules to compute embeddings for each node type. During pretraining HGNNs on the source node type, modules specialized to the source node type are well-trained, while modules specialized to the target node are untrained or under-trained. In Figure 3, we can observe the source modules (green and red lines) receive high L2 norms of gradients during pretraining. On the other hand, because of the specialization, the target modules (orange and blue lines) receive little or no gradients. With under-trained modules for the target node type, the pretrained HGNN model outputs poor node embeddings for the target node type, and, consequently, poor performance on the node prediction task.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;ktn-trainable-cross-type-transfer-learning-for-hgnns&quot;&gt;KTN: Trainable Cross-Type Transfer Learning for HGNNs&lt;&#x2F;h2&gt;
+&lt;p&gt;Now, we introduce a method to transform the under-trained poor embeddings of the target node type to follow source embeddings. This allows us to reuse the classifier that was trained on source node types. In order to derive the transformation in a principled manner, let us look into how HGNNs compute node embeddings and analyze the relationship between source and target embeddings.&lt;&#x2F;p&gt;
+&lt;figure&gt;
+&lt;img src=&quot;.&#x2F;figure4.png&quot; alt=&quot;HGNN structure&quot; width=&quot;600&quot;&#x2F;&gt;
+&lt;figcaption&gt;
+Figure 4. (left) In HGNNs, the final L-layer node embeddings for both source and target types are computed using the same input, the previous (L-1)-layer’s node embeddings. (right) The L-layer node embeddings of the source type (product, blue) can be represented by the L-layer node embeddings of the target type (user, red) using (L-1)-layer node embeddings as intermediate values.
+&lt;&#x2F;figcaption&gt;
+&lt;&#x2F;figure&gt;
+&lt;p&gt;In each layer, HGNNs aggregate connected nodes’ embeddings from the previous layer to update each target node’s embeddings. Node embeddings for both source and target node types are updated using the same input: the previous layer’s node embeddings of any connected node types (Figure 4, left). This means that they can be represented by each other using the previous layer embeddings as intermediate values (Figure 4, right).&lt;&#x2F;p&gt;
+&lt;p&gt;We prove there is a mapping matrix from the target domain to the source domain, which is defined by HGNN parameters (Theorem 1 in [1]). Based on this theorem, we introduce an auxiliary network, named Knowledge Transfer Networks (KTN), that learns the mapping matrix from scratch during pretraining HGNN on the source domain. At test time, we first compute target embeddings using the pretrained HGNN, then map the target embeddings to the source domain using our trained KTN. Finally, we can reuse the classifier with transformed target embeddings.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;experimental-results&quot;&gt;Experimental results&lt;&#x2F;h2&gt;
+&lt;figure&gt;
+&lt;img src=&quot;.&#x2F;figure5.png&quot; alt=&quot;zero-shot transfer learning results on OAG and Pubmed&quot; width=&quot;600&quot;&#x2F;&gt;
+&lt;figcaption&gt;
+Figure 5. Zero-shot transfer learning performance measured in NDCG on Open Academic Graph (OAG) and Pubmed datasets. Higher is better. Our proposed method KTN (red bar) shows the highest accuracy among all baselines.
+&lt;&#x2F;figcaption&gt;
+&lt;&#x2F;figure&gt;
+&lt;p&gt;To examine the effectiveness of our proposed KTN, we ran 18 different zero-shot transfer learning tasks on two public heterogeneous graphs, Open Academic Graph [4] and Pubmed [5]. We compare KTN with 8 state-of-the-art transfer learning methods. We show our results in Figure 5. Our proposed method KTN consistently outperforms all baselines on all tasks by up to 73.3%. The naive approach we discussed earlier — reuse the pretrained models directly on the target domain without any transfer learning — is presented as blue bar. We see our method KTN provides relative gains of up to 340% higher than the naive approach without using any labels from the target domain.&lt;&#x2F;p&gt;
+&lt;figure&gt;
+&lt;img src=&quot;.&#x2F;figure6.png&quot; alt=&quot;KTN with 6 different HGNN models&quot; width=&quot;450&quot;&#x2F;&gt;
+&lt;figcaption&gt;
+Figure 6. KTN can be applied to 6 different HGNN models and improve their zero-shot performance on target domains. Performance is measured in NDCG. Higher is better.
+&lt;&#x2F;figcaption&gt;
+&lt;&#x2F;figure&gt;
+&lt;p&gt;KTN can be applied to almost all HGNN models that have node&#x2F;edge type-specific modules and improve their zero-shot performance on target domains. In Figure 6, KTN improves accuracy on zero-labeled node types across 6 different HGNN models by up to 960%.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;takeaway&quot;&gt;Takeaway:&lt;&#x2F;h2&gt;
+&lt;p&gt;Various real-world applications can be presented as heterogeneous graphs. Heterogeneous graph neural networks (HGNNs) are an effective technique for summarizing heterogeneous graphs into concise embeddings. However, label scarcity issues on certain types of nodes have prevented the broader application of HGNNs. In this post, we introduced KTN, the first cross-type transfer learning method designed for HGNNs. With KTN, we can fully exploit the rich relational information of heterogeneous graphs with HGNNs on any nodes regardless of their label scarcity.&lt;&#x2F;p&gt;
+&lt;p&gt;For more details about KTN, check out our paper [1].&lt;&#x2F;p&gt;
+&lt;p&gt;[1] Minji Yoon, John Palowitch, Dustin Zelle, Ziniu Hu, Ruslan Salakhutdinov, Bryan Perozzi. &lt;em&gt;Zero-shot Transfer Learning within a Heterogeneous Graph via Knowledge Transfer Networks&lt;&#x2F;em&gt;, Neural Information Processing Systems (NeurIPS) 2022.&lt;&#x2F;p&gt;
+&lt;p&gt;[2] Tiancheng Huang, Ke Xu, and Donglin Wang. &lt;em&gt;Da-hgt: Domain adaptive heterogeneous graph transformer.&lt;&#x2F;em&gt; arXiv preprint arXiv:2012.05688, 2020.&lt;&#x2F;p&gt;
+&lt;p&gt;[3] Shuwen Yang, Guojie Song, Yilun Jin, and Lun Du. &lt;em&gt;Domain adaptive classification on heterogeneous information networks.&lt;&#x2F;em&gt; International Joint Conferences on Artificial Intelligence (IJCAI) 2021.&lt;&#x2F;p&gt;
+&lt;p&gt;[4] Fanjin Zhang, Xiao Liu, Jie Tang, Yuxiao Dong, Peiran Yao, Jie Zhang, Xiaotao Gu, Yan Wang, Bin Shao, Rui Li, et al. &lt;em&gt;Oag: Toward linking large-scale heterogeneous entity graphs.&lt;&#x2F;em&gt; In Proceedings of the 25th ACM SIGKDD International Conference on Knowledge Discovery &amp;amp; Data Mining 2019.&lt;&#x2F;p&gt;
+&lt;p&gt;[5] Carl Yang, Yuxin Xiao, Yu Zhang, Yizhou Sun, and Jiawei Han. &lt;em&gt;Heterogeneous network representation learning: A unified framework with survey and benchmark.&lt;&#x2F;em&gt; IEEE Transactions on Knowledge and Data Engineering, 2020.&lt;&#x2F;p&gt;
+</content>
+	</entry>
+	<entry xml:lang="en">
+		<title>Robustness between the worst and average case</title>
+		<published>2023-04-21T00:00:00+00:00</published>
+		<updated>2023-04-21T00:00:00+00:00</updated>
+		<link href="https://www.cs.cmu.edu/~csd-phd-blog/2023/intermediate-robustness/" type="text/html"/>
+		<id>https://www.cs.cmu.edu/~csd-phd-blog/2023/intermediate-robustness/</id>
+		<content type="html">&lt;p&gt;As machine learning systems become increasingly implemented in safety-critical applications, such as autonomous driving and healthcare, we need to ensure these systems are reliable and trustworthy. For example, we might wish to determine whether a car’s camera-based autopilot system can correctly classify the color of the light even in the presence of severe weather conditions, such as snow. Consider that the average snowy day looks something like the following:&lt;&#x2F;p&gt;
+&lt;img src=.&#x2F;snow1.png  width=&quot;400&quot;&gt;
+&lt;p&gt;Overall, the visibility is not too bad, and we can guess that these weather conditions do not present too much of an issue for the car’s autopilot system. However, every once in a while, we might get a snowy day that looks more like this:&lt;&#x2F;p&gt;
+&lt;img src=.&#x2F;snow2.png  width=&quot;400&quot;&gt;
+&lt;p&gt;The visibility is much worse in this scenario, and these conditions might be more difficult for the car’s autopilot system to safely navigate. However, the traffic light color, as well as most of the objects on the road, can still be identified, and we would hope that the autopilot would be able to operate correctly in these conditions. Finally, very rarely, we might have a snow squall like the following: &lt;&#x2F;p&gt;
+&lt;img src=.&#x2F;snow3.png  width=&quot;400&quot;&gt;
+&lt;p&gt;These conditions are so extreme that a human driver would probably need to pull over to the side of the road rather than attempt to drive in with such little visibility. Therefore, we probably should not require the autopilot system to be robust to such conditions. Now we ask the question, how should we evaluate the robustness of the the car’s autopilot to severe weather conditions? &lt;&#x2F;p&gt;
+&lt;p&gt;Existing methods for evaluating the robustness of a machine learning model to perturbed inputs (e.g. images that have been corrupted due to severe weather) are largely based on one of two notions. Average-case robustness, measures the model’s average performance on randomly sampled perturbations. In the autopilot example, for instance, we could randomly sample a bunch of images from all days recorded snow precipitation, and measure the average accuracy of the traffic light detection on those days. If most of those samples look like the first image shown above, we should expect the system’s average robustness to be pretty good. This notion of robustness, however, doesn’t tell us much about how our autopilot system will operate on more extreme conditions as depicted in the second and third images. &lt;&#x2F;p&gt;
+&lt;p&gt;Alternatively, worst-case robustness, or adversarial robustness, measures the model’s worst-case performance across all possible perturbations. For example, the worst-case performance of the autopilot system might be the result of navigating in the conditions depicted by the third image, displaying the snow squall. In this case, we should expect the system’s worst-case robustness to be pretty bad. But as we mentioned previously, we may not care so much if the system is able to navigate the worst-case conditions shown in the third image. &lt;&#x2F;p&gt;
+&lt;p&gt;So then, how do we best measure the robustness of the system to conditions like those shown in the second image, i.e. conditions worse than average, but not the worst possible conditions? In this blog post, we present an alternative method for evaluating the test-time performance of machine learning models that measures robustness &lt;em&gt;between&lt;&#x2F;em&gt; the worst and average case, or &lt;em&gt;intermediate&lt;&#x2F;em&gt; robustness. &lt;&#x2F;p&gt;
+&lt;h2 id=&quot;a-simple-example-robustness-to-gaussian-noise&quot;&gt;A simple example: robustness to Gaussian noise&lt;&#x2F;h2&gt;
+&lt;p&gt;To further motivate the notion of intermediate robustness, consider the simple scenario in which we are interested in evaluating the robustness of an image classification model to Gaussian noise applied to the input images. The image below is a sample from the ImageNet validation dataset, which an image classifier trained on the ImageNet training dataset correctly classifies as “pizza”. &lt;&#x2F;p&gt;
+&lt;img src=.&#x2F;pizza1.png  width=&quot;500&quot;&gt;
+&lt;p&gt;Given ten thousand random samples of Gaussian noise, the model classifies 97% of these noised images correctly, including the image below. Given the model correctly classifies a large majority of the randomly perturbed images, evaluating according to average-case robustness will place most weight on “easy” noise samples like this image.&lt;&#x2F;p&gt;
+&lt;img src=.&#x2F;pizza2.png  width=&quot;500&quot;&gt;
+&lt;p&gt;The following image shown below illustrates an example of a randomly noised image that the model incorrectly classifies as “soup bowl”. Evaluating according to average-case robustness will place not put much weight on these samples that are harder for the model to classify correctly. &lt;&#x2F;p&gt;
+&lt;img src=.&#x2F;pizza3.png  width=&quot;500&quot;&gt;
+&lt;p&gt;What if we want to evaluate the model’s robustness on a stricter level than average-case robustness? Evaluating the image classifier according to worst-case robustness doesn’t make much sense for this particular noise distribution, because the worst-case noise could be an arbitrarily large amount of noise with extremely low probability due to the Gaussian distribution being unbounded. A more practical evaluation of robustness would consider something stricter than simply average performance on random perturbations, but not quite as strict as adversarial robustness, which is exactly what our intermediate robustness metric enables.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;an-intermediate-robustness-metric&quot;&gt;An intermediate robustness metric&lt;&#x2F;h2&gt;
+&lt;p&gt;We’ll now go into the details of how we formulate an intermediate robustness metric. We start by observing that we can naturally generalize average-case and worst-case robustness under one framework. To show this, we will make use of the mathematical definition of an \( L^p \)-norm of a function \( f \) on a measure space \( X \): \( ||f||_p = (\int_X |f|^p )^{(1&#x2F;p)} \). However, to differentiate this from the use of \( \ell_p \)-norm balls as perturbation sets in adversarial robustness, we will from here on out refer this definition as a \(q \)-norm of a function. Ultimately, average and worst-case robustness can be generalized by taking the \( q \)-norm of the loss function over the perturbation distribution, where the loss just measures how well the model performs on the perturbed data. The setting of \( q=1 \) results in average-case robustness, whereas the setting of \( q = \infty \) results in worst-case robustness, because by definition the \( L^\infty \)-norm is given by the pointwise maximum of a function. Then, any value of \( q \) between \( 1 \) and \( \infty \) results in &lt;em&gt;intermediate&lt;&#x2F;em&gt; robustness. This is more formally written below:&lt;&#x2F;p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Define a neural network \( h \) with parameters \( \theta \), and a loss function \( \ell \) that measures how different the model predictions are from the true label \( y \) given an input \( x \). Consider we are interested in measuring the robustness of this model to perturbations \( \delta \) from some perturbation distribution with density \( \mu \). Now consider the following expectation over the \( q \)-norm of the loss according to this perturbation density,
+$$ \mathbf{E}_{x, y \sim \mathcal{D}} \Big[ ||\ell(h_\theta(x+\delta), y)||_{\mu, q} \Big], $$
+where the \( q \)-norm of the loss with perturbation density \( \mu \) is the following:
+$$ ||\ell(h_\theta(x+\delta), y)||_{\mu, q} = \mathbf{E}_{\delta \sim \mu} [|\ell(h_\theta(x+\delta), y)|^q]^{1&#x2F;q} = \Big( \int |\ell(h_\theta(x+\delta), y)|^q \mu(\delta)d\delta) \Big)^{1&#x2F;q}.$$
+Assuming a smooth, non-negative loss function, this expectation corresponds to the expected loss on random perturbations (average-case) when \( q = 1 \), 
+$$ || \ell(h_\theta(x+\delta), y) ||_{\mu, 1} = \mathbf{E}_{\delta \sim \mu} [\ell(h_\theta(x+\delta), y)], $$
+and the expected maximum loss over all possible perturbations (worst-case) when \( q = \infty \), 
+$$ || \ell(h_\theta(x+\delta), y) ||_{\mu, \infty} = \text{max}_{\delta \in \text{Supp}(\mu)}[\ell(h_\theta(x+\delta), y)].$$&lt;&#x2F;p&gt;
+&lt;&#x2F;blockquote&gt;
+&lt;p&gt; &lt;&#x2F;p&gt;
+&lt;p&gt;Intuitively, as we increase \( q \), more emphasis will be placed on high loss values, as the losses become more strongly “peaked” due to the exponent of \( q \). And so by increasing \(q \) from \( 1 \) to \( \infty \), we enable a full spectrum of intermediate robustness measurements that are increasingly strict by placing more weight on high loss values. This formulation allows us to evaluate a model’s robustness in a wide range between the two extremes of average and worst case performance.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;approximating-the-metric-using-path-sampling&quot;&gt;Approximating the metric using path sampling&lt;&#x2F;h2&gt;
+&lt;p&gt;In most cases, we have to approximate the metric we just defined, which cannot be calculated exactly because it requires computing a high-dimensional integral over the perturbation space. Ultimately, we approximate the integral using the path sampling method [Gelman and Meng, 1998], but to motivate why this is important, we’ll first give an example of a naive, yet suboptimal, way of estimating the integral.&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;monte-carlo-estimator&quot;&gt;Monte Carlo estimator&lt;&#x2F;h3&gt;
+&lt;p&gt;For illustration purposes, let’s consider approximating the integral \( \int_a^b f(x)^q \mu(x)dx \) for an arbitrary function \( f \) and probability density \( \mu \). Recall that the integral of a function can be interpreted as calculating the area below the function’s curve. We could pick a random sample \( x \), evaluate the function \( f(x)^q \) at \( x \) and multiply by \( (b-a ) \) to estimate the area. However, using just one sample, this will likely underestimate or overestimate the area. If we instead pick many samples and take the average of their estimates, with enough samples this theoretically should eventually converge to something close to the desired integral. This is known as the Monte Carlo estimator, and can be visualized in the plot below for the function \( f(x)^q \) with \( q = 1 \).&lt;&#x2F;p&gt;
+&lt;img src=.&#x2F;integral1.png  width=&quot;400&quot;&gt;
+&lt;p&gt;Now let’s see what this plot looks like for \( q=2 \). We see that values of \( x \) for which the value \( f(x) \) is large make a larger contribution to the integral. However, because these values of \( x \) have a lower probability of being sampled, random sampling places a disproportionate amount of weight on estimates from \( x \) with lower values of \( f(x) \).&lt;&#x2F;p&gt;
+&lt;img src=.&#x2F;integral2.png  width=&quot;400&quot;&gt;
+&lt;p&gt;As we continue to increase the value of \( q \), as shown in the plot below for \( q=3 \), we can see that Monte Carlo sampling will be increasingly insufficient to approximate this integral well.&lt;&#x2F;p&gt;
+&lt;img src=.&#x2F;integral3.png  width=&quot;400&quot;&gt;
+&lt;p&gt;Translating this back to our integral of interest, when the perturbation density is concentrated in a region with low loss values, the Monte Carlo estimator will be less capable of producing an accurate approximation of the integral when we want to evaluate intermediate robustness for larger values of \( q \).&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;path-sampling-estimator&quot;&gt;Path sampling estimator&lt;&#x2F;h3&gt;
+&lt;p&gt;To better approximate the integral for large values of \( q \), we need to sample perturbations that contribute more largely to the integral (e.g. result in higher loss values) more frequently. Path sampling is one method that boosts the frequency of more “important” samples by sampling from a “path” of alternative densities that encourages samples where the integrand is large. &lt;&#x2F;p&gt;
+&lt;p&gt;The path sampling estimator of the intermediate robustness metric ultimately takes the form of the geometric mean of the losses given the sampled perturbations from these alternative densities, which are annealed to follow an increasingly “peaked” distribution. Practically, these samples can be drawn using Markov chain Monte Carlo (MCMC) methods. The path sampling estimator is written more formally below:&lt;&#x2F;p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Consider the following class of densities,
+$$ p(\delta|t) \propto \ell(h_\theta(x+\delta),y)^t \mu(\delta),$$
+and construct a path by interpolating \( t^{(i)} \) between 0 and \( q \) and sampling a perturbation \( \delta^{(i)} \) from \( p(\delta|t^{(i)}) \) using MCMC. Then, the path sampling estimator of the intermediate robustness metric is the following geometric mean,
+$$ \hat{Z}_\text{Path sampling} := \Big( \prod_{i=1}^m \ell \big( h_\theta(x+\delta^{(i)}), y \big) \Big)^{1&#x2F;m}.$$&lt;&#x2F;p&gt;
+&lt;&#x2F;blockquote&gt;
+&lt;h2 id=&quot;evaluating-the-intermediate-robustness-of-an-image-classifier&quot;&gt;Evaluating the intermediate robustness of an image classifier&lt;&#x2F;h2&gt;
+&lt;p&gt;Now that we have introduced a metric for evaluating the intermediate robustness of a model, along with methods for approximating this metric, let’s evaluate the performance of a model at different robustness levels. We’ll see that the intermediate robustness metric interpolates between measurements of average and the worst-case robustness, providing a multitude of additional ways in which we can measure a model’s robustness, and we’ll empirically show the advantage of the path sampling estimator over the Monte Carlo estimator.&lt;&#x2F;p&gt;
+&lt;p&gt;Because it is a setting commonly considered in the adversarial (worst-case) robustness literature, consider evaluating the robustness of an image classifier to perturbations \( \delta \) uniformly distributed within the \( \ell_\infty \)-norm ball with radius \( \epsilon \) (i.e. each component of \( \delta \) is uniformly distributed between \( [-\epsilon, \epsilon] \)).&lt;&#x2F;p&gt;
+&lt;p&gt;In the figure below, we plot the test-time performance of an image classifier, trained on the CIFAR-10 dataset, using our intermediate robustness metric for different values of \( q \).&lt;&#x2F;p&gt;
+&lt;img src=.&#x2F;interpolating.jpeg  width=&quot;500&quot;&gt;
+&lt;p&gt;This figure shows that our proposed intermediate robustness metric does indeed capture the gap between the two existing robustness metrics, effectively interpolating between average-case robustness (\( q=1 \)) and worst-case (adversarial) robustness measurements when increasing the value of \( q \) from left to right.&lt;&#x2F;p&gt;
+&lt;p&gt;We can also compare the Monte Carlo and path sampling estimators for different values of \( q \). This figure illustrates that while both of the approximation methods result in a similar estimate for \( q=1 \), for larger values of \( q \), path sampling results in a higher, more accurate estimate of the intermediate robustness metric, more closely approaching the adversarial loss, when compared to Monte Carlo sampling.&lt;&#x2F;p&gt;
+&lt;p&gt;The benefit of the path sampling estimator can be further shown in the figure below, which plots the convergence of the Monte Carlo sampling and path sampling estimates of the intermediate robustness metric given an increasing number of samples.&lt;&#x2F;p&gt;
+&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th align=&quot;center&quot;&gt;Convergence with \( q=1 \)&lt;&#x2F;th&gt;&lt;th align=&quot;center&quot;&gt;Convergence with \( q=100 \)&lt;&#x2F;th&gt;&lt;&#x2F;tr&gt;&lt;&#x2F;thead&gt;&lt;tbody&gt;
+&lt;tr&gt;&lt;td align=&quot;center&quot;&gt;&lt;img src=&quot;.&#x2F;convergence-q=1.jpeg&quot; alt=&quot;q=1&quot; &#x2F;&gt;&lt;&#x2F;td&gt;&lt;td align=&quot;center&quot;&gt;&lt;img src=&quot;.&#x2F;convergence-q=100.jpeg&quot; alt=&quot;q=100&quot; &#x2F;&gt;&lt;&#x2F;td&gt;&lt;&#x2F;tr&gt;
+&lt;&#x2F;tbody&gt;&lt;&#x2F;table&gt;
+&lt;p&gt;Again, when approximating the robustness metric for \( q=1 \), shown on the left, both estimators converge to the same value with relatively few iterations. However, when approximating the intermediate robustness metric for \( q=100 \), shown on the right, the Monte Carlo sampler results in estimates that are consistently lower and less accurate than those of path sampling, even with a large number of samples. &lt;&#x2F;p&gt;
+&lt;h2 id=&quot;training-for-different-levels-of-robustness&quot;&gt;Training for different levels of robustness&lt;&#x2F;h2&gt;
+&lt;p&gt;We can also &lt;em&gt;train&lt;&#x2F;em&gt; machine learning models according to specific levels of robustness by choosing a value of \( q \) and minimizing the intermediate robustness objective. However, training intermediate robust models is computationally challenging because a non-trivial number of perturbation samples is needed to accurately estimate the robustness objective, even when using the path sampling method. While evaluating models simply requires one iteration over the test dataset, training requires multiple iterations over the training dataset, resulting in an extremely expensive procedure when effectively multiplying the dataset size by the number of perturbaton samples.&lt;&#x2F;p&gt;
+&lt;p&gt;Due to this computational complexity, we train an image classifier on the simpler MNIST dataset (using the same perturbation set) to minimize the intermediate robustness objective for different values of \( q \) (approximated using path sampling). We train one model with \( q=1 \), which is just like training with data augmentation (training on randomly sampled perturbations), and we train one model with \( q=100 \), which is somewhere in between training with data augmentation and adversarial training (training on worst-case perturbations).&lt;&#x2F;p&gt;
+&lt;p&gt;We evaluate the intermediate and adversarial robustness of each of the final trained models, the results of which can be seen in the figure below.&lt;&#x2F;p&gt;
+&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th align=&quot;center&quot;&gt;Training with \( q=1 \)&lt;&#x2F;th&gt;&lt;th align=&quot;center&quot;&gt;Training with \( q=100 \)&lt;&#x2F;th&gt;&lt;&#x2F;tr&gt;&lt;&#x2F;thead&gt;&lt;tbody&gt;
+&lt;tr&gt;&lt;td align=&quot;center&quot;&gt;&lt;img src=&quot;.&#x2F;train_q1.png&quot; alt=&quot;q=1&quot; &#x2F;&gt;&lt;&#x2F;td&gt;&lt;td align=&quot;center&quot;&gt;&lt;img src=&quot;.&#x2F;train_q100.png&quot; alt=&quot;q=100&quot; &#x2F;&gt;&lt;&#x2F;td&gt;&lt;&#x2F;tr&gt;
+&lt;&#x2F;tbody&gt;&lt;&#x2F;table&gt;
+&lt;p&gt;While the model trained with \( q=1 \), shown on the left, and the model trained with \( q=100 \), shown on the right, have similar performance when evaluated at less strict robustness levels, \( q=1 \) and \( q=10 \), the model trained with \( q=100 \) is much more robust when comparing the stricter \( q=1000 \) and adversarial robustness measurements.&lt;&#x2F;p&gt;
+&lt;p&gt;Ultimately, the main takeaway from training using the proposed intermediate robustness objective is that the choice of \( q \) allows for fine-grained control over the desired level of robustness, rather than being restricted to average-case or worst-case objectives.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;conclusion&quot;&gt;Conclusion&lt;&#x2F;h2&gt;
+&lt;p&gt;We’ve introduced a new robustness metric that allows for evaluating a machine learning model’s intermediate robustness, bridging the gap between evaluating robustness to random perturbations and robustness to worst-case perturbations. This intermediate robustness metric generalizes average-case and worst-case notions of robustness under the same framework as functional \( q \)-norms of the loss function over the perturbation distribution. We introduced a method for approximating this metric using path sampling, which results in a more accurate estimate of the metric compared to naive Monte Carlo sampling when evaluating at robustness levels approaching adversarial robustness. Empirically we showed that by evaluating an image classifier on additive noise perturbations, the proposed intermediate robustness metric enables a broader spectrum of robustness measurements, between the least strict notion of average performance on random perturbations and the most conservative notion of adversarial robustness. Finally, we highlighted the potential ability to train for specific levels of robustness using intermediate-\( q \) robustness as a training objective. For additional details, see our paper &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;proceedings.neurips.cc&#x2F;paper&#x2F;2021&#x2F;file&#x2F;ea4c796cccfc3899b5f9ae2874237c20-Paper.pdf&quot;&gt;here&lt;&#x2F;a&gt; and code &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;github.com&#x2F;locuslab&#x2F;intermediate_robustness&quot;&gt;here&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;references&quot;&gt;References&lt;&#x2F;h2&gt;
+&lt;p&gt;Andrew Gelman and Xiao-Li Meng. Simulating normalizing constants: From importance sampling
+to bridge sampling to path sampling. Statistical science, pages 163–185, 1998.&lt;&#x2F;p&gt;
+&lt;p&gt;Bennett, Charles H. “Efficient estimation of free energy differences from Monte Carlo data.” Journal of Computational Physics 22.2 (1976): 245-268.&lt;&#x2F;p&gt;
+&lt;p&gt;Meng, Xiao-Li, and Wing Hung Wong. “Simulating ratios of normalizing constants via a simple identity: a theoretical exploration.” Statistica Sinica (1996): 831-860.&lt;&#x2F;p&gt;
+&lt;p&gt;Simon Duane, Anthony D Kennedy, Brian J Pendleton, and Duncan Roweth. Hybrid monte carlo.
+Physics letters B, 195(2):216–222, 1987&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;acknowledgements&quot;&gt;Acknowledgements&lt;&#x2F;h2&gt;
+&lt;p&gt;This blog post is based on the NeurIPS 2021 paper titled &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;proceedings.neurips.cc&#x2F;paper&#x2F;2021&#x2F;file&#x2F;ea4c796cccfc3899b5f9ae2874237c20-Paper.pdf&quot;&gt;Robustness between the worst and average case&lt;&#x2F;a&gt;, which was joint work with &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;annaebair.github.io&#x2F;&quot;&gt;Anna Bair&lt;&#x2F;a&gt;, &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;www.huan-zhang.com&#x2F;&quot;&gt;Huan Zhang&lt;&#x2F;a&gt;, and &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;http:&#x2F;&#x2F;zicokolter.com&#x2F;&quot;&gt;Zico Kolter&lt;&#x2F;a&gt;. This work was supported by a grant from the Bosch Center for Intelligence.&lt;&#x2F;p&gt;
+</content>
+	</entry>
+	<entry xml:lang="en">
+		<title>Classification with Strategically Withheld Data</title>
+		<published>2023-02-21T00:00:00+00:00</published>
+		<updated>2023-02-21T00:00:00+00:00</updated>
+		<link href="https://www.cs.cmu.edu/~csd-phd-blog/2023/withheld/" type="text/html"/>
+		<id>https://www.cs.cmu.edu/~csd-phd-blog/2023/withheld/</id>
+		<content type="html">&lt;p&gt;&lt;em&gt;This blog post is based on a &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;arxiv.org&#x2F;pdf&#x2F;2012.10203.pdf&quot;&gt;research paper&lt;&#x2F;a&gt; with the same title, authored by Anilesh Krishnaswamy, Haoming Li, David Rein, Hanrui Zhang, and Vincent Conitzer, published at AAAI 2021.&lt;&#x2F;em&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;em&gt;TL;DR: We investigate a classification problem where each data point being classified is controlled by an agent who has its own goals or incentives, and may strategically withhold certain features in order to game the classifer and get a more desirable label.  We use (an oversimplied version of) college admissions as a running example to illustrate how traditional methods may fail in such settings, as well as how insights from the economic field of mechanism design may help.  We then demonstrate a principled method — Incentive-Compatible Logistic Regression — for classification problems with strategically withheld features, which achieves remarkable empirical performance on credit approval data.&lt;&#x2F;em&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;Applicants to most colleges in the US are required to submit their scores for at least one of the SAT and the ACT.
+Applicants usually take one of these two tests — &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;www.princetonreview.com&#x2F;college&#x2F;sat-act&quot;&gt;whichever works to their advantage&lt;&#x2F;a&gt;.
+However, given the growing competitiveness of college admissions, many applicants now take both tests and then strategically decide whether to &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;blog.collegevine.com&#x2F;should-you-submit-your-sat-act-scores&#x2F;&quot;&gt;drop one of the scores&lt;&#x2F;a&gt; (if they think it will hurt their application) or report both.
+The key issue here is that it is impossible to distinguish between an applicant who takes both tests but reports only one, and an applicant who takes only one test — for example, because the applicant simply took the one required by their school, the dates for the other test did not work with their schedule, or for other reasons that are not strategic in nature.
+Such ambiguity makes it harder for colleges to accurately evaluate applicants, especially since colleges now increasingly &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;www.fastcompany.com&#x2F;90342596&#x2F;schools-are-quietly-turning-to-ai-to-help-pick-who-gets-in-what-could-go-wrong&quot;&gt;rely on machine learning techniques to help make admissions decisions&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;what-can-go-wrong&quot;&gt;What Can Go Wrong?&lt;&#x2F;h2&gt;
+&lt;p&gt;Consider the following simplified scenario: each applicant may naturally (i.e., before they strategically drop one of the scores) have an SAT score, an ACT score, or both.
+We also assume these scores are normalized, so they become real numbers between 0 and 1.
+Suppose the true competitiveness of an applicant is the average of the scores they naturally have — that is, if an applicant naturally has only one score, then that score is their true competitiveness; if an applicant naturally has both scores, then their true competitiveness is the average of the two scores.
+We will use this setup as our running example from now on.
+We will not try to “solve” this example problem (later we will see that in some cases, there is no satisfactory solution to the problem), but rather, we will use the example to illustrate the limitations of some classical methods, as well as to motivate the more principled method that we propose.&lt;&#x2F;p&gt;
+&lt;p&gt;Now a college wishes to assess each applicant’s competitiveness based on the scores, and admit all applicants whose competitiveness is at least 0.5 (or some threshold chosen by the college).
+Assuming all applicants report all scores they naturally have, it is easy to make admissions decisions: the college simply computes each applicant’s average score, and admits that applicant if the average is at least 0.5.
+In other words, the college implements a simple &lt;strong&gt;classifier&lt;&#x2F;strong&gt;, which assigns any applicant &lt;strong&gt;label “admitted”&lt;&#x2F;strong&gt; if the average value of their &lt;strong&gt;&lt;em&gt;natural&lt;&#x2F;em&gt; features&lt;&#x2F;strong&gt; is at least 0.5.&lt;&#x2F;p&gt;
+&lt;p&gt;However, the simple classifier has its problems: after it is used for admissions for a couple of years, applicants may eventually figure out how it works (for example, by talking to past applicants and researching their test scores and application results).
+Once applicants know how the decisions are made, they can easily game the system by strategically withholding information.
+Consider, for example, an applicant with an SAT score of 0.6 and an ACT score of 0.2.
+The applicant would normally be rejected since their true competitiveness is 0.4, which is smaller than the classifier’s threshold, 0.5.
+However, knowing how the classifier works, the applicant can withhold the ACT score and report the SAT score only to the college.
+Then the classifier would mistakenly believe that the applicant’s competitiveness is 0.6, and admit the applicant.
+As a result, the classifier is not accurate anymore when applicants act strategically and try to game it.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;how-can-we-fix-it&quot;&gt;(How) Can We Fix It?&lt;&#x2F;h2&gt;
+&lt;p&gt;Taking into consideration the fact that applicants will eventually figure out how decisions are made, and in response to that, withhold scores strategically to maximize their chances, is it still possible for the college to admit exactly those applicants that the college wants to admit?
+The answer is — perhaps not so surprisingly — it &lt;em&gt;depends on the &lt;strong&gt;distribution&lt;&#x2F;strong&gt; of applicants&lt;&#x2F;em&gt;, including how often each score is missing, as well as how the two scores correlate.
+To illustrate this dependence, below we discuss two extreme cases.&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;img src=&quot;.&#x2F;examples.png&quot; alt=&quot;two extreme cases&quot; &#x2F;&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;In one extreme case (illustrated in the left of the figure), every applicant naturally has both scores and the college knows that.
+Then, the college’s problem is again simple: the college admits an applicant if and only if that applicant reports both scores, and the average of the two scores is at least 0.5.
+This ensures that no applicant would want to withhold a score, because that would lead to automatic rejection.
+Moreover, no applicant would be mistakenly rejected because they cannot report both scores, since everyone naturally has both scores.&lt;&#x2F;p&gt;
+&lt;p&gt;In another extreme case (illustrated in the right of the figure), there are only two types of applicants: a type-1 applicant naturally has an SAT score of 0.6 and does not have an ACT score; a type-2 applicant naturally has an SAT score of 0.6 and an ACT score of 0.2.
+Ideally, the college would like to admit all type-1 applicants (because their competitiveness is 0.6), and reject all type-2 applicants (because their competitiveness is 0.4).
+However, this is impossible once applicants respond strategically to the college’s classifier.
+For example, if the college admits all type-1 applicants whose SAT score is 0.6 and ACT score is missing, then a type-2 applicant would pretend to be a type-1 applicant by withholding their ACT score, and get admitted too.
+On the other hand, to prevent type-2 applicants getting in by pretending to be type-1 applicants, the college would have to reject all type-1 applicants too, eventually admitting no one.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;a-principled-approach-via-mechanism-design&quot;&gt;A Principled Approach via Mechanism Design&lt;&#x2F;h2&gt;
+&lt;p&gt;The above discussion highlights one fact: when applicants respond strategically, the optimal classifier must depend on the distribution of applicants, even if the college’s criteria for admissions stays the same, and there is no restrictions whatsoever on how many applicants can be admitted.
+This is reminiscent of problems in &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;en.wikipedia.org&#x2F;wiki&#x2F;Mechanism_design&quot;&gt;mechanism design&lt;&#x2F;a&gt;.
+In a mechanism design problem, a &lt;strong&gt;principal&lt;&#x2F;strong&gt; designs and commits to a decision rule, or a &lt;strong&gt;mechanism&lt;&#x2F;strong&gt; — in the admissions problem discussed above, the principal is the college, and the decision rule is the classifier used for admissions.
+Self-interested &lt;strong&gt;agents&lt;&#x2F;strong&gt; (e.g., applicants) then respond to this rule by reporting (possibly nontruthfully) their private information (e.g., their test scores) to the principal.
+The mechanism then chooses an &lt;strong&gt;outcome&lt;&#x2F;strong&gt; (e.g., admissions decisions) based on the reported information.
+Taking the agents’ strategic behavior into consideration, the principal aims to design a mechanism to maximize their own &lt;strong&gt;utility&lt;&#x2F;strong&gt; (e.g., accuracy of admissions decisions), which generally depends on both the outcome and the agents’ private information.
+In fact, in our running example, the college’s problem can be cast directly as a mechanism design problem.
+Below we will see how tools from mechanism design can help in solving the college’s classification problem.&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;incentive-compatibility-and-the-revelation-principle&quot;&gt;Incentive Compatibility and the Revelation Principle&lt;&#x2F;h3&gt;
+&lt;p&gt;A key notion in mechanism design is &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;en.wikipedia.org&#x2F;wiki&#x2F;Incentive_compatibility&quot;&gt;incentive compatibility&lt;&#x2F;a&gt;: a mechanism is incentive-compatible if it is always in the agents’ best interest to truthfully report their private information.
+Applied to our running example, incentive compatibility means that applicants would never want to withhold a test score that they naturally have.
+One reason that incentive compatibility is so important in mechanism design is that it is often &lt;em&gt;without loss of generality&lt;&#x2F;em&gt;: if there is no restriction on the ways in which an agent can (mis)report their private information, then for any (possibly not incentive-compatible) mechanism, there always exists an “incentive-compatible version” of that mechanism which achieves the same effects.
+This is famously known as the &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;en.wikipedia.org&#x2F;wiki&#x2F;Revelation_principle&quot;&gt;revelation principle&lt;&#x2F;a&gt;.
+The reason that the revelation principle holds is simple: the principal can adapt any mechanism into an incentive-compatible one by “misreporting for” the agents, in the exact way that the agents would misreport in response to the original mechanism.
+We show that a variant of the revelation principle applies to the college’s classification problem (and more generally, to all classification problems with strategically withheld features).
+This greatly simplifies the problem, because without loss of generality, we only need to consider classifiers under which applicants have no incentive to withhold any score.
+This effectively removes the strategic aspect and leaves a clean classification problem.&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;incentive-compatible-logistic-regression&quot;&gt;Incentive-Compatible Logistic Regression&lt;&#x2F;h3&gt;
+&lt;p&gt;Given the revelation principle, we propose a principled method, &lt;strong&gt;incentive-compatible logistic regression&lt;&#x2F;strong&gt;, for classification problems with strategically withheld data.
+The idea is simple: we run the classical gradient-based algorithm for logistic regression, &lt;em&gt;but with the search space restricted to classifiers that are incentive-compatible&lt;&#x2F;em&gt;.
+The college can then use the resulting model to classify applicants in an incentive-compatible way.
+We will see below how this can be done by adding a projection step to the region of incentive-compatible classifiers, after each gradient step.&lt;&#x2F;p&gt;
+&lt;p&gt;Recall that in logistic regression, the goal is to learn a set of coefficients \({\beta_i}\), one for each feature \(i\), as well as an intercept \(\beta_0\), such that for each data point \((x, y)\), the predicted label \(\hat{y}\) given by
+\[
+\hat{y} = \mathbb{I}\left[\sigma\left(\beta_0 + \sum_i x_i \cdot \beta_i\right) \ge 0.5\right]
+\]
+fits the true label \(y\) as well as possible.
+Here, \(\sigma\) is the logistic function, defined as
+\[
+\sigma(t) = 1 &#x2F; (1 + e^{-t}).
+\]
+Mapping these notions back to our running example, each data point \((x, y)\) corresponds to an applicant, where each feature \(x_i\) is one of the two scores, and the true label \(y\) is \(1\) (corresponding to “admitted”) if the applicant’s true competitiveness is at least the college’s desired threshold, and \(0\) (corresponding to “rejected”) otherwise.
+The classifier computes a predicted label \(\hat{y}\) for each data point, which is the admissions decision for that specific applicant.
+Naturally, the college wants \(\hat{y}\) to fit \(y\) as well as possible.&lt;&#x2F;p&gt;
+&lt;p&gt;It turns out there is a simple condition for the classifier of the above form to be incentive-compatible.
+Without loss of generality, suppose each feature \(x_i\) is always nonnegative.
+this is naturally true in our running example, since each feature is a score between \(0\) and \(1\); in general, we can shift the features if they are not nonnegative.
+Moreover, if a feature is missing in a data point, then we simply treat that feature as \(0\).
+Then a classifier induced by \({\beta_i}\) is incentive-compatible if and only if each \(\beta_i\) is nonnegative.
+This is because if some \(\beta_i &amp;lt; 0\), then a data point with feature \(x_i &amp;gt; 0\) will be able to increase their score, \(\sigma\left(\beta_0 + \sum_i x_i \cdot \beta_i\right)\), by withholding feature \(x_i\).
+Depending on the values of other features, this will sometimes change the predicted label of that data point from \(0\) (i.e., rejected) to \(1\) (i.e., admitted).
+In other words, such a classifier cannot be incentive-compatible.
+On the other hand, if each \(\beta_i\) is nonnegative, then for any data point, withholding a feature \(x_i\) can never increase the score, so there is no incentive to withhold any feature.&lt;&#x2F;p&gt;
+&lt;p&gt;Given the above characterization, we can simply adapt the gradient-based algorithm for (unconstrained) logistic regression to find a good incentive-compatible classifier.
+We initialize the classifier arbitrarily, and repeat the following steps for each data point \((x, y)\) until convergence:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;The gradient step&lt;&#x2F;strong&gt;: Let
+\[
+\beta_0 \gets \beta_0 - \eta_t \cdot \left(\sigma\left(\beta_0 + \sum_i x_i \cdot \beta_i\right) - y\right).
+\]
+For each feature \(i\), let
+\[
+\beta_i \gets \beta_i - \eta_t \cdot \left(\sigma\left(\beta_0 + \sum_i x_i \cdot \beta_i\right) - y\right) \cdot x_i.
+\]
+Here, \(\eta_t\) is the learning rate in step \(t\).
+This rate normally decreases in \(t\), e.g., \(\eta_t = 1 &#x2F; \sqrt{t}\).&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;The projection step&lt;&#x2F;strong&gt;: For each feature \(i\), let
+\[
+\beta_i \gets \max\{0, \beta_i\}.
+\]&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;This can be viewed as an instantiation of the projected gradient descent algorithm: the gradient step is exactly the same as in (unconstrained) logistic regression, and the projection step ensures that the incentive-compatibility constraint is satisfied.&lt;&#x2F;p&gt;
+&lt;p&gt;Coming back to our running example, incentive-compatible logistic regression will assign a nonnegative weight to each test score and admit an applicant if the weighted sum of the two scores exceeds some threshold.  Note that this does not “solve” the college’s problem in all cases: for example, between the two extreme cases discussed above, incentive-compatible logistic regression would work very well in the first case, but in the second case its performance would not be practically meaningful, simply because the second case is intrinsically hard and no classifier can achieve a reasonable accuracy there.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;experimental-results&quot;&gt;Experimental Results&lt;&#x2F;h2&gt;
+&lt;p&gt;We empirically evaluate incentive-compatible logistic regression on 4 real-world credit approval datasets from the &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;http:&#x2F;&#x2F;archive.ics.uci.edu&#x2F;ml&#x2F;index.php&quot;&gt;UCI ML Repository&lt;&#x2F;a&gt;, based on historical data collected in Australia, Germany, Poland, and Taiwan.
+Each data point in each dataset corresponds to a single credit application, with tens of features (3 datasets provide 15-23 features, and the other provides 64), including annual income, employment status, current balance in savings account, etc.
+Each data point has a binary label, which is either “approve” (i.e., 1) or “reject” (i.e., 0).
+We preprocess the datasets by randomly dropping some features for each data point, thus simulating naturally missing features.
+We consider two ways of reporting in our evaluation:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Truthful reporting&lt;&#x2F;strong&gt;: Each data point always reveals all features it naturally has to the classifier.
+This is the assumption made by the baseline methods, which we compare against in our evaluation.&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Strategic reporting&lt;&#x2F;strong&gt;: In reponse to the classifier, each data point optimally withholds a subset of features to maximize the chance of getting approved (i.e., label 1).
+For incentive-compatible logistic regression, strategic reporting is equivalent to truthful reporting.
+However, as we will see, the baseline methods perform significantly worse with strategic reporting (which is natural, since they were not designed to be robust against strategic manipulation).&lt;&#x2F;p&gt;
+&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;As for the baseline methods, we compare against &lt;strong&gt;logistic regression&lt;&#x2F;strong&gt; (without incentive-compatibility), &lt;strong&gt;neural networks&lt;&#x2F;strong&gt;, and &lt;strong&gt;random forests&lt;&#x2F;strong&gt;.
+These are the most popular and accurate methods in credit approval applications.
+For more details of the experiments, please see Section 6 of &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;arxiv.org&#x2F;pdf&#x2F;2012.10203.pdf&quot;&gt;our paper&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;The accuracy of each classifier tested on each dataset can be found in the table below.
+Note that there are two numbers in each cell: the left one corresponds to the accuracy under truthful reporting, and the right one corresponds to the accuracy under strategic reporting.&lt;&#x2F;p&gt;
+&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;Classifier&lt;&#x2F;th&gt;&lt;th&gt;Australia&lt;&#x2F;th&gt;&lt;th&gt;Germany&lt;&#x2F;th&gt;&lt;th&gt;Poland&lt;&#x2F;th&gt;&lt;th&gt;Taiwan&lt;&#x2F;th&gt;&lt;&#x2F;tr&gt;&lt;&#x2F;thead&gt;&lt;tbody&gt;
+&lt;tr&gt;&lt;td&gt;Incentive-compatible logistic regression&lt;&#x2F;td&gt;&lt;td&gt;&lt;strong&gt;0.800&lt;&#x2F;strong&gt; &#x2F; &lt;strong&gt;0.800&lt;&#x2F;strong&gt;&lt;&#x2F;td&gt;&lt;td&gt;0.651 &#x2F; &lt;strong&gt;0.651&lt;&#x2F;strong&gt;&lt;&#x2F;td&gt;&lt;td&gt;0.698 &#x2F; &lt;strong&gt;0.698&lt;&#x2F;strong&gt;&lt;&#x2F;td&gt;&lt;td&gt;0.646 &#x2F; &lt;strong&gt;0.646&lt;&#x2F;strong&gt;&lt;&#x2F;td&gt;&lt;&#x2F;tr&gt;
+&lt;tr&gt;&lt;td&gt;Logistic regression (baseline)&lt;&#x2F;td&gt;&lt;td&gt;&lt;strong&gt;0.800&lt;&#x2F;strong&gt; &#x2F; 0.763&lt;&#x2F;td&gt;&lt;td&gt;&lt;strong&gt;0.652&lt;&#x2F;strong&gt; &#x2F; 0.580&lt;&#x2F;td&gt;&lt;td&gt;0.714 &#x2F; 0.660&lt;&#x2F;td&gt;&lt;td&gt;0.670 &#x2F; 0.618&lt;&#x2F;td&gt;&lt;&#x2F;tr&gt;
+&lt;tr&gt;&lt;td&gt;Artificial neural networks (baseline)&lt;&#x2F;td&gt;&lt;td&gt;&lt;strong&gt;0.800&lt;&#x2F;strong&gt; &#x2F; 0.747&lt;&#x2F;td&gt;&lt;td&gt;&lt;strong&gt;0.652&lt;&#x2F;strong&gt; &#x2F; 0.580&lt;&#x2F;td&gt;&lt;td&gt;&lt;strong&gt;0.719&lt;&#x2F;strong&gt; &#x2F; 0.636&lt;&#x2F;td&gt;&lt;td&gt;&lt;strong&gt;0.688&lt;&#x2F;strong&gt; &#x2F; 0.543&lt;&#x2F;td&gt;&lt;&#x2F;tr&gt;
+&lt;tr&gt;&lt;td&gt;Random forest (baseline)&lt;&#x2F;td&gt;&lt;td&gt;0.797 &#x2F; 0.541&lt;&#x2F;td&gt;&lt;td&gt;0.633 &#x2F; 0.516&lt;&#x2F;td&gt;&lt;td&gt;0.709 &#x2F; 0.522&lt;&#x2F;td&gt;&lt;td&gt;0.684 &#x2F; 0.588&lt;&#x2F;td&gt;&lt;&#x2F;tr&gt;
+&lt;&#x2F;tbody&gt;&lt;&#x2F;table&gt;
+&lt;p&gt;Here we make two observations:&lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;Under strategic reporting, incentive-compatible logistic regression is consistently much more accurate than all 3 baseline methods.
+This highlights the importance of robustness against strategic manipulation by design.&lt;&#x2F;li&gt;
+&lt;li&gt;The accuracy of incentive-compatible logistic regression under strategic reporting is often comparable to that of the baseline methods under truthful reporting.
+In other words, although strategic manipulation poses challenges in the design of a good classifier, from an information-theoretic perspective, the classification problem does not become much harder.&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;h2 id=&quot;conclusion&quot;&gt;Conclusion&lt;&#x2F;h2&gt;
+&lt;p&gt;We study the problem of classification when each data point can strategically withhold some of its features to obtain a more favorable outcome.
+We propose a principled classification method, incentive-compatible logistic regreggsion, which is robust to strategic manipulation.
+The new method is tested on real-world datasets, showing that it outperforms out-of-the-box methods that do not account for strategic behavior.
+More generally, we draw connections between strategic classification and mechanism design, which may inspire future work in other strategic classification settings.&lt;&#x2F;p&gt;
+</content>
+	</entry>
+	<entry xml:lang="en">
+		<title>Cases2Beds: A Case Study in Actionable Intelligence Highlights</title>
+		<published>2022-01-06T00:00:00+00:00</published>
+		<updated>2022-01-06T00:00:00+00:00</updated>
+		<link href="https://www.cs.cmu.edu/~csd-phd-blog/2022/casestobeds/" type="text/html"/>
+		<id>https://www.cs.cmu.edu/~csd-phd-blog/2022/casestobeds/</id>
+		<content type="html">&lt;p&gt;&lt;em&gt;This blog post is adapted from the &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;delphi.cmu.edu&#x2F;blog&#x2F;2021&#x2F;03&#x2F;10&#x2F;cases2beds-a-case-study-in-actionable-intelligence&#x2F;&quot;&gt;Delphi blog&lt;&#x2F;a&gt;, originally published on March 10th, 2021. Again, thank you to the Allegheny County Health Department, the DELPHI Group, Chris Scott, and Roni Rosenfeld.&lt;&#x2F;em&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;One of the &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;delphi.cmu.edu&#x2F;&quot;&gt;Delphi Group&lt;&#x2F;a&gt;’s goals is to create informative tools for healthcare organizations. Tools are only useful if the insights they provide can inform concrete actions. That is to say these tools must provide actionable intelligence. In early November 2020, as COVID case rates in Allegheny County continued to rise, the Delphi Group partnered with the Allegheny County Health Department (ACHD) to create such tools for investigating if hospitals located in the county would run out of hospital beds for COVID patients &lt;a href=&quot;#f1&quot;&gt;(Fig. 1)&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+&lt;div id=&quot;f1&quot;&gt;&lt;&#x2F;div&gt;
+&lt;p&gt;&lt;img src=&quot;.&#x2F;WPRDC-1.svg&quot; alt=&quot;Image of the hospitalizations due to COVID-19 and new cases from positive PCR tests in Allegheny County. There are rapid upward trends in hospitalizations and positive cases from October 2020 to mid-December 2020.  The maximum number of hospitalizations is about 600 and the minimum is less than 50 [in Oct 2020]. The maximum number of positive cases is over 7000 and the minimum is less than 1000 [in Oct 2020].&quot; &#x2F;&gt;
+&lt;strong&gt;Fig. 1:&lt;&#x2F;strong&gt; Hospitalizations Due to COVID-19 and New Cases from Positive PCR Tests in Allegheny County (WPRDC Data &lt;sup&gt;&lt;a href=&quot;https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;%7Ecsd-phd-blog&#x2F;2022&#x2F;casestobeds&#x2F;#WPRDCLink&quot;&gt;1&lt;&#x2F;a&gt;&lt;&#x2F;sup&gt;)&lt;&#x2F;p&gt;
+&lt;p&gt;Based on its planning, the ACHD needed at least a week to open emergency COVID facilities. If the emergency space wasn’t open and hospital beds ran out, mortality rates could soar. But, if we didn’t need the facility, that decision would have stretched already thin resources. Many of the hospitals in Allegheny County were in contact, but each hospital system only had visibility into its own facilities. We wanted to offer a more holistic picture of hospital resources for ACHD to assist in its planning.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;a-probabilistic-approach&quot;&gt;A Probabilistic Approach&lt;&#x2F;h2&gt;
+&lt;p&gt;To provide county-level intelligence on hospital bed usage, we developed Cases2Beds&lt;sup&gt;&lt;a href=&quot;https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;%7Ecsd-phd-blog&#x2F;2022&#x2F;casestobeds&#x2F;#Cases2BedsLink&quot;&gt;2&lt;&#x2F;a&gt;&lt;&#x2F;sup&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;To extrapolate beds utilization 1-2 weeks in the future, we needed to estimate:&lt;&#x2F;p&gt;
+&lt;ol&gt;
+&lt;li&gt;The probability that a person who tested positive for COVID-19 would require hospitalization&lt;&#x2F;li&gt;
+&lt;li&gt;How many days after testing a person would be hospitalized&lt;&#x2F;li&gt;
+&lt;li&gt;How long a person with COVID would stay in the hospital&lt;&#x2F;li&gt;
+&lt;li&gt;The current number of positive COVID tests&lt;&#x2F;li&gt;
+&lt;&#x2F;ol&gt;
+&lt;p&gt;These values vary by demographic factors, most notably age (&lt;a href=&quot;#f2&quot;&gt;Fig. 2&lt;&#x2F;a&gt;), and to a lesser extent, sex and race.&lt;&#x2F;p&gt;
+&lt;div id=&quot;f2&quot;&gt;&lt;&#x2F;div&gt;
+&lt;p&gt;&lt;img src=&quot;.&#x2F;rates-1.svg&quot; alt=&quot;Age Group Comparisons based on the Allegheny County COVID-19 Tableau. The age groups are 0-9, 10-19, 20-29, 30-39, 40-49, 50-59, 60-69, 70+, and unspecified. As the age group increases, the percent of those who were tested in that age group and were later hospitalized in that age group increases (the 70+ age group being &amp;gt; 5%).&quot; &#x2F;&gt;
+&lt;strong&gt;Fig. 2:&lt;&#x2F;strong&gt; Age Group Comparisons based on the Allegheny County COVID-19 Tableau &lt;sup&gt;&lt;a href=&quot;https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;%7Ecsd-phd-blog&#x2F;2022&#x2F;casestobeds&#x2F;#ACHDDashboardLink&quot;&gt;3&lt;&#x2F;a&gt;&lt;&#x2F;sup&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;We used public data from Allegheny County about the number of people tested, test positivity rate, and hospitalization rate, broken down by the aforementioned demographic factors.&lt;&#x2F;p&gt;
+&lt;p&gt;We also acquired information for two critical parameters: &lt;&#x2F;p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Offset&lt;&#x2F;strong&gt;: Offset is the number of days between the day of testing (called specimen collection date) and the first day of hospitalization. For example, if the test date were 5 days before hospitalization, the offset would be 5 days. Also, if the test date is the hospital admit date, the offset would be 0 days (or sometimes, if, for example, they are admitted at midnight, -1 or +1 days). Notably, the offset can be negative, meaning a person may have been tested some days or weeks after admission.&lt;&#x2F;li&gt;
+&lt;li&gt;&lt;strong&gt;Length of Stay&lt;&#x2F;strong&gt;: The length of stay is approximately how many days a person uses a bed in the hospital (± 1 day).&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;p&gt;Given the hospitalization rate, the offset distribution, and the length of stay distribution, we can simulate multiple futures for any given set of positive cases and their testing dates. Estimating the future given a set of probabilities is a common problem and a possible approach is called a Monte Carlo simulation. This process ultimately shows the expected distribution of the number of beds needed each day.&lt;&#x2F;p&gt;
+&lt;p&gt;Monte Carlo simulations involve running a large number of scenarios based on a set of probabilities. The more scenarios run, the more accurate the model tends to be. For example, if you gave 1000 people one dart to throw at a dartboard, even though each throw may not be very good, you’d still be able to get a pretty good idea of where the bull’s eye is after 1000 throws. This is the same principle we applied for Cases2Beds – after many simulations, we had a good idea of how many beds might be needed in the next two weeks.&lt;&#x2F;p&gt;
+&lt;p&gt;Our prototype Monte Carlo simulation was written in Python and had a runtime of a few minutes. However, because the simulation works best with probabilities derived from Protected Health Information (PHI), ACHD needed to run it privately and offline so there would be no data transmission. Thus, any type of web application (which would transmit data to our servers) was ruled out. Even asking ACHD to run our Python software on their machines fell into a grey area. However, Microsoft Excel was easy to use and supported by ACHD. So we converted Cases2Beds into a spreadsheet. &lt;&#x2F;p&gt;
+&lt;p&gt;It is relatively straightforward to port the Python application to VBScript macros for Microsoft Excel. However, those macros aren’t designed to run large simulations, and we saw that the time required to generate a model was far worse, bordering on unusable.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;an-alternative-to-monte-carlo-the-analytical-model&quot;&gt;An Alternative to Monte Carlo: the Analytical Model&lt;&#x2F;h2&gt;
+&lt;p&gt;As an alternative, we developed an analytical model for Microsoft Excel that offered a much faster run time than the full Monte Carlo simulation. The sheet has two tabs of inputs: constant parameters (first tab, static), and case counts (second tab, dynamic). &lt;&#x2F;p&gt;
+&lt;p&gt;The analytical model had the same idea as the Monte Carlo simulation. Some fraction of individuals who test positive today will be hospitalized after a varying offset (from test date to admit date) and variable duration (from admit date to discharge date) based on their characteristics (see &lt;a href=&quot;https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;%7Ecsd-phd-blog&#x2F;2022&#x2F;casestobeds&#x2F;#app&quot;&gt;appendix&lt;&#x2F;a&gt;). Because these parameters can vary by region, anyone can change these values in spreadsheet tab 1.&lt;&#x2F;p&gt;
+&lt;p&gt;The characteristics are:&lt;&#x2F;p&gt;
+&lt;ol&gt;
+&lt;li&gt;Age Group: (Most important) [unspecified, 0-9, 10-19, 20-29 … 70-79, 80+]&lt;&#x2F;li&gt;
+&lt;li&gt;Sex: [unspecified, M, F]&lt;&#x2F;li&gt;
+&lt;li&gt;Race: [unspecified, Black, White, Hispanic, Asian]&lt;&#x2F;li&gt;
+&lt;&#x2F;ol&gt;
+&lt;p&gt;And the parameters are:&lt;&#x2F;p&gt;
+&lt;ol&gt;
+&lt;li&gt;Hospitalization Rate&lt;&#x2F;li&gt;
+&lt;li&gt;Offset Distribution Parameter Set: Parameters describing the number of days before someone who tests positive is hospitalized&lt;&#x2F;li&gt;
+&lt;li&gt;Duration Distribution Parameter Set: Parameters describing the number of days someone will be in the hospital&lt;&#x2F;li&gt;
+&lt;&#x2F;ol&gt;
+&lt;p&gt;The second types of inputs are the daily positive cases split by their traits. This is the input that the user actively changes on their end.&lt;&#x2F;p&gt;
+&lt;p&gt;Behind the scenes, we take these parameters (first input tab) and generate Offset Fractions, which is the probability that a patient with given traits will occupy a bed for a duration k days after the specimen testing date. These Offset Fractions and the daily positive case breakdown (second input) give us the expected mean and variance up to 1 month in the future of the number of patients in the hospital per day based on the cases already seen (for details, see &lt;a href=&quot;https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;%7Ecsd-phd-blog&#x2F;2022&#x2F;casestobeds&#x2F;#app&quot;&gt;appendix&lt;&#x2F;a&gt;). This information can be used to generate plots like &lt;a href=&quot;#f3&quot;&gt;(Fig. 3)&lt;&#x2F;a&gt;. This graph isn’t to suggest that there won’t be any need for beds after February! It is just that based on the cases we know, very few people will be hospitalized for more than a month.&lt;&#x2F;p&gt;
+&lt;div id=&quot;f3&quot;&gt;&lt;&#x2F;div&gt;
+&lt;p&gt;&lt;img src=&quot;.&#x2F;C2B-1.svg&quot; alt=&quot;Output of Cases2Beds using historical data until January 21st for Allegheny County Using Public Parameters. In the output of Cases2Beds, we see a peak in mid-December 2020 in the mean number of beds, followed by a stagnation period in mid-January 2021 and a rapid decline until the end of March 2021.  The 25-75 Quantile and 5-95 Quantile are highlighted on the graph with the band having the largest width between mid-December 2020 and mid-January 2021. &quot; &#x2F;&gt;
+&lt;strong&gt;Fig. 3:&lt;&#x2F;strong&gt;  Output of Cases2Beds using historical data until January 21st for Allegheny County Using Public Parameters&lt;&#x2F;p&gt;
+&lt;p&gt;If we assume independence between patients, the mean and variance calculations are exact. However, our quantile estimates are based on approximating the sum of independent binary variables, which is inaccurate near the tails. So the accuracy of the more extreme quantiles (95%+) depends on the number of cases present, which in practice makes them less trustworthy.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;cases2beds-in-action&quot;&gt;Cases2Beds in Action&lt;&#x2F;h2&gt;
+&lt;p&gt;By the end of November 2020, we had a viable prototype Cases2Beds spreadsheet used by ACHD. Over the following months, we made various modifications with their feedback. For example, the ACHD staff did not have time to manually input case numbers. So, we were able to use the granular public data to give them estimates of future hospital utilization without any additional work on their end. &lt;&#x2F;p&gt;
+&lt;p&gt;At the peak of bed utilization, hospital systems themselves increased their COVID beds utilization to 6x more than in October 2020. Fortunately, in Allegheny County, we never reached a point where demand for beds exceeded a somewhat elastic supply. In early January 2021, multiple organizations told us that the pandemic’s most acute problem had changed to vaccine distribution and the number of COVID-19 beds needed dropped. Cases2Beds continues to act as an early warning system if the number of cases rise quickly.&lt;&#x2F;p&gt;
+&lt;div id=&quot;f4&quot;&gt;&lt;&#x2F;div&gt;
+&lt;p&gt;&lt;img src=&quot;.&#x2F;HHS-1.svg&quot; alt=&quot;Numbers of staffed COVID beds over time vs. capacity from the HHS Protect Data. There was peak hospital utilization (7-day Average of COVID Adult Beds Used) in mid-December 2020 (over 800 beds avg.) before a steady decline until February 2021 (around 200 beds avg). &quot; &#x2F;&gt;
+&lt;strong&gt;Fig. 4:&lt;&#x2F;strong&gt; Numbers of staffed COVID beds over time vs. capacity from the HHS Protect Data &lt;sup&gt;&lt;a href=&quot;https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;%7Ecsd-phd-blog&#x2F;2022&#x2F;casestobeds&#x2F;#HHSLink&quot;&gt;5&lt;&#x2F;a&gt;&lt;&#x2F;sup&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;We were also able to show the efficacy of the spreadsheet to other health departments and hospitals by generating tailored, public parameters for offset and length of stay from different national public resources, like the Florida line-level COVID dataset &lt;sup&gt;&lt;a href=&quot;https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;%7Ecsd-phd-blog&#x2F;2022&#x2F;casestobeds&#x2F;#FloridaLineLevelLink&quot;&gt;4&lt;&#x2F;a&gt;&lt;&#x2F;sup&gt;. &lt;&#x2F;p&gt;
+&lt;p&gt;Based on these organizations’ feedback that they needed projections more than 2 weeks out, we started to use Cases2Beds as an input to hospital utilization forecasting models. Other inputs to the hospital forecasting model included current hospital bed utilization  (from HHS Protect&lt;sup&gt;&lt;a href=&quot;https:&#x2F;&#x2F;www.cs.cmu.edu&#x2F;%7Ecsd-phd-blog&#x2F;2022&#x2F;casestobeds&#x2F;#HHSLink&quot;&gt;5&lt;&#x2F;a&gt;&lt;&#x2F;sup&gt;), how long current patients are likely to continue to be hospitalized, and how many new cases there will be in the near future. A preliminary evaluation of such a method shows decent predictive power when parameters are tailored to a location.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;conclusion&quot;&gt;Conclusion&lt;&#x2F;h2&gt;
+&lt;p&gt;Cases2Beds was a case study about the realities of research institutions offering actionable intelligence in healthcare. While the Cases2Beds tool demonstrated reasonable predictive power, it was difficult to deploy it in a timely and actionable way. Our most significant challenges were data access and bureaucratic limitations to develop solutions at the granularity needed. &lt;&#x2F;p&gt;
+&lt;p&gt;Research institutions can be effective partners to health organizations, but the next set of challenges of this pandemic–or the next–will require quick action. The tools we build now can set the stage for the future. &lt;&#x2F;p&gt;
+&lt;p&gt;Thank you to the Allegheny County Health Department (especially Antony Gnalian, Dr. LuAnn Brink, and Dr. Debra Bogen) for their invaluable feedback, efforts, and shared interest in actionable intelligence.&lt;&#x2F;p&gt;
+&lt;p&gt;Many members of the Delphi Group, including Sumit Agrawal, Katie Mazaitis, and Phil McGuinness, met regularly with the Allegheny County Health Department, provided data, edited this blog post, and investigated various solutions other than Cases2Beds.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;resources&quot;&gt;Resources&lt;&#x2F;h2&gt;
+&lt;p&gt;Please check out the &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;github.com&#x2F;cmu-delphi&#x2F;cases-to-beds-public&quot;&gt;Cases2Beds Github Repo&lt;&#x2F;a&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;a id=&quot;WPRDCLink&quot;&gt;1.&lt;&#x2F;a&gt;  &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;data.wprdc.org&#x2F;dataset&#x2F;allegheny-county-covid-19-tests-cases-and-deaths&quot;&gt;WPRDC Allegheny County COVID dataset&lt;&#x2F;a&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;a id=&quot;Cases2BedsLink&quot;&gt;2.&lt;&#x2F;a&gt; &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;www.cmu.edu&#x2F;delphi-web&#x2F;cases2beds-v0.2.3.xlsm&quot;&gt;Cases2Beds Worksheet&lt;&#x2F;a&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;a id=&quot;ACHDDashboardLink&quot;&gt;3.&lt;&#x2F;a&gt;  &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;tableau.alleghenycounty.us&#x2F;t&#x2F;PublicSite&#x2F;views&#x2F;AlleghenyCountyCOVID-19Information_15912788131180&#x2F;Landingpage?iframeSizedToWindow=true&amp;amp;%3Aembed=y&amp;amp;%3AshowAppBanner=false&amp;amp;%3Adisplay_count=no&amp;amp;%3AshowVizHome=no&amp;amp;%3Aorigin=viz_share_link&quot;&gt;ACHD COVID-19 Dashboard&lt;&#x2F;a&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;a id=&quot;FloridaLineLevelLink&quot;&gt;4.&lt;&#x2F;a&gt;  &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;experience.arcgis.com&#x2F;experience&#x2F;96dd742462124fa0b38ddedb9b25e429&quot;&gt;Florida line-level COVID dataset&lt;&#x2F;a&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;a id=&quot;HHSLink&quot;&gt;5.&lt;&#x2F;a&gt;  &lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;healthdata.gov&#x2F;Hospital&#x2F;COVID-19-Reported-Patient-Impact-and-Hospital-Capa&#x2F;anag-cw7u&quot;&gt;HHS Protect Hospital Utilization Data&lt;&#x2F;a&gt;&lt;&#x2F;p&gt;
+&lt;div id=&quot;app&quot;&gt;&lt;&#x2F;div&gt;
+&lt;h2 id=&quot;appendix&quot;&gt;Appendix&lt;&#x2F;h2&gt;
+&lt;p&gt;To generate the Offset Fractions (OF(k|traits)), which is the probability a patient with given traits will occupy a bed on k days after the specimen testing date, we follow &lt;strong&gt;Alg 1&lt;&#x2F;strong&gt;. For a given set of traits, the Offset Fractions for day k, where k is between -10 and 31, is the sum of the offset * distribution probabilities * hospitalization rate that sum up to day k. From these Offset Fractions, the mean&#x2F;var of bed occupancy on a given day is given in &lt;strong&gt;Alg 2&lt;&#x2F;strong&gt;.&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#393939;color:#dedede;&quot;&gt;&lt;code&gt;&lt;span&gt;for o in (-10, 30): #This is the offset
+&lt;&#x2F;span&gt;&lt;span&gt;    for d in (0, 40): #This is the duration of the stay
+&lt;&#x2F;span&gt;&lt;span&gt;              for k in (o, o+d): 
+&lt;&#x2F;span&gt;&lt;span&gt;                    if (k&amp;lt;31): 
+&lt;&#x2F;span&gt;&lt;span&gt;                          OF(k|traits) += Offset(o|traits) * Duration(d|traits) * Hospitalization(traits)
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;&lt;strong&gt;Alg 1&lt;&#x2F;strong&gt;: Generate Occupancy Fractions for a given set of traits&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#393939;color:#dedede;&quot;&gt;&lt;code&gt;&lt;span&gt;for specimen_date and num_cases in case_inputs: 
+&lt;&#x2F;span&gt;&lt;span&gt;     for t in (-10, 30):
+&lt;&#x2F;span&gt;&lt;span&gt;          p = OF(t|traits)
+&lt;&#x2F;span&gt;&lt;span&gt;          beds_mean(spec_date + t) += num_cases * p
+&lt;&#x2F;span&gt;&lt;span&gt;          beds_var(spec_date + t) += num_cases*p*(1-p)
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;&lt;strong&gt;Alg 2&lt;&#x2F;strong&gt;: Generate Mean and Variances&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;strong&gt;High-level Mathematical Formulation of the Model:&lt;&#x2F;strong&gt; &lt;&#x2F;p&gt;
+&lt;p&gt;O&lt;sub&gt;r,l&lt;&#x2F;sub&gt;: The offset value for a given subset of the population r &lt;span&gt;∈&lt;&#x2F;span&gt; R where R := {race}x{gender}x{age group} for a given day l where -10 &lt;span&gt;≤&lt;&#x2F;span&gt; l &lt;span&gt;≤&lt;&#x2F;span&gt;  30. This &lt;strong&gt;pdf&lt;&#x2F;strong&gt; is derived from a piecewise function using segments of exponential distributions characterized by the offset parameters. &lt;&#x2F;p&gt;
+&lt;p&gt;D&lt;sub&gt;r,k&lt;&#x2F;sub&gt;: The duration value for a given subset of the population r &lt;span&gt;∈&lt;&#x2F;span&gt; R for a given day k where 0 &lt;span&gt;≤&lt;&#x2F;span&gt; k &lt;span&gt;≤&lt;&#x2F;span&gt;  40. This &lt;strong&gt;pdf&lt;&#x2F;strong&gt; is derived from a piecewise function using segments of exponential distributions characterized by the duration parameters. &lt;&#x2F;p&gt;
+&lt;p&gt;h&lt;sub&gt;r&lt;&#x2F;sub&gt;: The hospitalization rate for a given subset of the population r &lt;span&gt;∈&lt;&#x2F;span&gt; R where 0 &lt;span&gt;≤&lt;&#x2F;span&gt; h&lt;sub&gt;r&lt;&#x2F;sub&gt; &lt;span&gt;≤&lt;&#x2F;span&gt; 1 &lt;&#x2F;p&gt;
+&lt;p&gt;c&lt;sub&gt;r,d&lt;&#x2F;sub&gt;: The number of cases for a given subset of the population r &lt;span&gt;∈&lt;&#x2F;span&gt; R on a particular specimen collection date d (ex: 5 cases with specimen collected on January 1st 2021).&lt;&#x2F;p&gt;
+&lt;p&gt;$$OF_{r, j} = \sum_{l=-10}^{30} \sum_{k=0}^{40} \mathbb{I} (  l \leq j \leq l+k ) O_{r, l} * D_{r, k}*h_r $$ 
+The offset fraction for a given subset of the population r &lt;span&gt;∈&lt;&#x2F;span&gt; R for a given delta j where -10 &lt;span&gt;≤&lt;&#x2F;span&gt; j &lt;span&gt;≤&lt;&#x2F;span&gt;  30.&lt;&#x2F;p&gt;
+&lt;p&gt;$$ \mathbb{E}[\beta_i] = \sum_{d \in D}\sum_{r \in R}\sum_{j = -10}^{30}  \mathbb{I} ( d+j = i)  OF_{r, j}*c_{r, d} $$ 
+The expected number of beds on date i, where i can start 10 days before the first case date and can end 30 days after the the last case date (c&lt;sub&gt;r,d&lt;&#x2F;sub&gt;)&lt;&#x2F;p&gt;
+</content>
+	</entry>
+	<entry xml:lang="en">
+		<title>Hello World</title>
+		<published>2021-08-16T00:00:00+00:00</published>
+		<updated>2021-08-16T00:00:00+00:00</updated>
+		<link href="https://www.cs.cmu.edu/~csd-phd-blog/2021/helloworld/" type="text/html"/>
+		<id>https://www.cs.cmu.edu/~csd-phd-blog/2021/helloworld/</id>
+		<content type="html">&lt;h1 id=&quot;hello-world&quot;&gt;Hello World!&lt;&#x2F;h1&gt;
+&lt;h2 id=&quot;hello&quot;&gt;Hello&lt;&#x2F;h2&gt;
+&lt;p&gt;This is the first post being made to the CSD PhD blog, testing out the
+system. And so, indeed, hello world!&lt;&#x2F;p&gt;
+&lt;p&gt;That’s really all there is to this
+post. You don’t need to keep reading. I just have to fill this space so
+that the preview of this post is filled up. That way when it renders
+we can see what it looks like full of text. So this is just filler text,
+explaining what is going on in a meta way. Feel free to ignore it and
+just go about your business.&lt;&#x2F;p&gt;
+&lt;p&gt;But it seems that you are in fact continuing to read. I wonder why. 
+Perhaps if I had filled this
+section in with &lt;em&gt;Lorem ipsum&lt;&#x2F;em&gt; it would be a better signal that there are
+no secrets to be gotten from reading this section. You are still reading though.
+Just reading along. This is just a test post,
+and here you are, taking all this time to read it. It’s just gonna be
+filled with meaningless filler text. Well, that and some markdown
+rendering tests. Most of them are coming up in
+the next section. And since you keep on reading, you’ll certainly run
+into them. That’s probably going to be even more bland to read. It’s
+just going to repeat “Hello World” over and over again. But maybe
+you just enjoy reading any words at all. You are, after all, still
+reading this.&lt;&#x2F;p&gt;
+&lt;p&gt;What, did you still think there was going to be some
+secret in this section? Well, there’s not. Honestly its just filler text.
+I know, there were these whole additional paragraphs, but they’re not special - just testing
+the paragraph break rendering. And, yeah, it works. You saw the paragraph break, right?
+Or are you just reading on without paying attention? Or, actually, did the site break?
+Well, whatever, this test post can’t do anything about it. No, this post just going to
+go on, unread, moldering in a virtual corner. Well, almost unread. You are reading this.
+I still don’t know why, but you’ve made it a long way through. Honestly, you could
+probably go longer than I care to write for a post as meaningless as this.
+Next time, I’m just going to use &lt;em&gt;Lorem ipsum&lt;&#x2F;em&gt; to fill space.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;world&quot;&gt;World&lt;&#x2F;h2&gt;
+&lt;p&gt;&lt;em&gt;Hello World&lt;&#x2F;em&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;strong&gt;Hello World&lt;&#x2F;strong&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;del&gt;Hello World&lt;&#x2F;del&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;code&gt;Hello World&lt;&#x2F;code&gt;&lt;&#x2F;p&gt;
+&lt;p&gt;$$Hello World$$&lt;&#x2F;p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Hello World&lt;&#x2F;p&gt;
+&lt;&#x2F;blockquote&gt;
+&lt;ul&gt;
+&lt;li&gt;Hello&lt;&#x2F;li&gt;
+&lt;li&gt;World&lt;&#x2F;li&gt;
+&lt;&#x2F;ul&gt;
+&lt;pre data-lang=&quot;c&quot; style=&quot;background-color:#393939;color:#dedede;&quot; class=&quot;language-c &quot;&gt;&lt;code class=&quot;language-c&quot; data-lang=&quot;c&quot;&gt;&lt;span style=&quot;color:#fed6af;&quot;&gt;#include &lt;&#x2F;span&gt;&lt;span style=&quot;color:#d6d6d680;&quot;&gt;&amp;lt;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#d68686;&quot;&gt;stdio.h&lt;&#x2F;span&gt;&lt;span style=&quot;color:#d6d6d680;&quot;&gt;&amp;gt;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#fffb9d;&quot;&gt;int &lt;&#x2F;span&gt;&lt;span style=&quot;color:#fffd87;&quot;&gt;main&lt;&#x2F;span&gt;&lt;span&gt;() {
+&lt;&#x2F;span&gt;&lt;span&gt;   &lt;&#x2F;span&gt;&lt;span style=&quot;color:#fffd87;&quot;&gt;printf&lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#d6d6d680;&quot;&gt;&amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#d68686;&quot;&gt;Hello World!&lt;&#x2F;span&gt;&lt;span style=&quot;color:#d6d6d680;&quot;&gt;&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;);
+&lt;&#x2F;span&gt;&lt;span&gt;   &lt;&#x2F;span&gt;&lt;span style=&quot;color:#fed6af;&quot;&gt;return &lt;&#x2F;span&gt;&lt;span style=&quot;font-weight:bold;color:#87d6d5;&quot;&gt;0&lt;&#x2F;span&gt;&lt;span&gt;;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th align=&quot;right&quot;&gt;Hello&lt;&#x2F;th&gt;&lt;th align=&quot;left&quot;&gt;World&lt;&#x2F;th&gt;&lt;&#x2F;tr&gt;&lt;&#x2F;thead&gt;&lt;tbody&gt;
+&lt;tr&gt;&lt;td align=&quot;right&quot;&gt;Hi&lt;&#x2F;td&gt;&lt;td align=&quot;left&quot;&gt;Universe&lt;&#x2F;td&gt;&lt;&#x2F;tr&gt;
+&lt;tr&gt;&lt;td align=&quot;right&quot;&gt;Greetings&lt;&#x2F;td&gt;&lt;td align=&quot;left&quot;&gt;Earth&lt;&#x2F;td&gt;&lt;&#x2F;tr&gt;
+&lt;tr&gt;&lt;td align=&quot;right&quot;&gt;Hey&lt;&#x2F;td&gt;&lt;td align=&quot;left&quot;&gt;Everything&lt;&#x2F;td&gt;&lt;&#x2F;tr&gt;
+&lt;tr&gt;&lt;td align=&quot;right&quot;&gt;Sup&lt;&#x2F;td&gt;&lt;td align=&quot;left&quot;&gt;Realm&lt;&#x2F;td&gt;&lt;&#x2F;tr&gt;
+&lt;&#x2F;tbody&gt;&lt;&#x2F;table&gt;
+&lt;p&gt;&lt;a rel=&quot;noopener&quot; target=&quot;_blank&quot; href=&quot;https:&#x2F;&#x2F;en.wikipedia.org&#x2F;wiki&#x2F;%22Hello,_World!%22_program&quot;&gt;Further Reading&lt;&#x2F;a&gt;&lt;&#x2F;p&gt;
+&lt;h1 id=&quot;lorem-ipsum&quot;&gt;Lorem Ipsum&lt;&#x2F;h1&gt;
+&lt;p&gt;Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut rutrum nulla luctus tristique porttitor. Curabitur ut nibh non nulla dapibus facilisis. In maximus, nisi bibendum volutpat sagittis, enim ligula vehicula dolor, a dignissim est justo quis lorem. Nulla cursus sagittis magna facilisis imperdiet. Etiam non luctus arcu. Sed vulputate urna urna, sed convallis metus imperdiet et. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia curae; Praesent ut ornare nisl, sit amet congue ligula. Ut iaculis euismod dictum. Donec est arcu, porta nec sem vel, euismod mollis eros. Nulla consequat vel magna nec ornare. Pellentesque eu massa vel orci ornare ultrices nec in nunc.&lt;&#x2F;p&gt;
+&lt;p&gt;Quisque tellus est, accumsan vitae ullamcorper a, maximus et ante. Mauris odio sem, bibendum fringilla ullamcorper tempor, molestie id dolor. Nulla sed tincidunt sapien. Duis vitae arcu sollicitudin, ullamcorper est vel, varius dolor. Nunc augue erat, congue ut tincidunt id, ornare a libero. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Quisque purus diam, ornare sed suscipit a, euismod in justo.&lt;&#x2F;p&gt;
+&lt;p&gt;Aliquam aliquam congue eros vel volutpat. Nunc ullamcorper vitae mi vehicula commodo. Phasellus ultricies a nunc a blandit. Integer tincidunt velit ut metus vehicula, vitae dictum eros sodales. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Cras consectetur suscipit maximus. Integer ut sem fringilla, interdum nulla sed, pretium nisi. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nam lobortis mollis leo, ut condimentum erat hendrerit sit amet. Donec vitae semper risus. Aenean sollicitudin tincidunt laoreet. Quisque velit tellus, vestibulum sed nisi et, pharetra feugiat nunc.&lt;&#x2F;p&gt;
+&lt;p&gt;Morbi luctus lobortis orci id aliquam. Pellentesque viverra arcu nunc, sed ultricies lectus molestie quis. Praesent cursus dui elementum purus tempor vehicula. Nulla sed ligula blandit, tristique purus nec, consequat ex. Nunc et consequat ligula, nec vehicula nisi. Integer imperdiet nisl felis, nec porttitor quam maximus quis. Sed commodo lacus eget urna consequat gravida. Proin pellentesque mollis magna, eu consectetur nulla efficitur vitae. Nullam rhoncus faucibus sapien id gravida. Nam maximus pellentesque lorem, auctor vulputate quam porttitor sed. Praesent fringilla id eros sit amet lobortis. Donec ultrices pretium nisl sit amet euismod. Vestibulum consectetur euismod orci non fermentum. Nam congue sapien id interdum malesuada. Sed sit amet rhoncus magna, vel gravida sem. Praesent tincidunt consectetur gravida.&lt;&#x2F;p&gt;
+&lt;p&gt;Ut consectetur, ex at sagittis blandit, libero magna dictum velit, nec ullamcorper erat diam nec urna. Curabitur tincidunt nisi risus, non pulvinar ipsum eleifend et. Pellentesque nec dolor non tellus efficitur mattis vitae sed neque. Suspendisse lectus nulla, mollis in fermentum ac, tempus a sapien. Suspendisse tempor consectetur porttitor. Aenean sed purus tempor, mollis lectus ac, tristique odio. Sed purus risus, tempus non risus aliquet, tincidunt aliquam eros. Vestibulum eget sollicitudin diam, porta rhoncus felis. Cras pellentesque vestibulum euismod. Phasellus placerat iaculis quam, quis suscipit elit semper ut.
+Foundus theus secretus. Donec tempus sed justo nec semper. Vestibulum blandit velit quis risus lobortis, sit amet efficitur nulla scelerisque. Phasellus condimentum lectus non augue molestie, egestas auctor turpis porta. Mauris eget est a eros venenatis tempus. Duis lorem nisl, vulputate et neque et, ullamcorper ornare ipsum.&lt;&#x2F;p&gt;
+</content>
+	</entry>
+</feed>
