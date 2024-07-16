@@ -2,7 +2,7 @@
 # The title of your blogpost. No sub-titles are allowed, nor are line-breaks.
 title = "Measuring and Exploiting Network Usable Information"
 # Date must be written in YYYY-MM-DD format. This should be updated right before the final PR is made.
-date = 2024-04-09
+date = 2024-06-21
 
 [taxonomies]
 # Keep any areas that apply, removing ones that don't. Do not add new areas!
@@ -21,9 +21,9 @@ author = {name = "Meng-Chieh Lee", url = "https://mengchillee.github.io/" }
 # The committee specification is simply a list of strings.
 # However, you can also make an object with fields like in the author.
 committee = [
-    "Committee Member 1's Full Name",
-    "Committee Member 2's Full Name",
-    {name = "Harry Q. Bovik", url = "http://www.cs.cmu.edu/~bovik/"},
+    "Jignesh Patel",
+    "David Touretzky",
+    "Ananya Joshi"
 ]
 +++
 
@@ -38,9 +38,6 @@ Therefore, we aim to answer two questions:
 2. How can we know what information in the graph (if any) is usable to solve the tasks, namely, node classification and link prediction? 
 
 Our goal is to design a metric for measuring how informative the graph structure and node features are for the task at hand, which we call network usable information (NUI).
-
-<!-- However, in real-world scenarios, it is possible that neither the graph structure nor the node features are usable for solving the task.
-In these scenarios, training a GNN will be a waste of time and resources, especially for large cloud service providers like AWS, whose customers would like to perform the tasks with restricted budgets in a short time.  -->
 
 In this blog post, we introduce how to measure the information in the graph, and to exploit it for solving the graph tasks. This blog post is based on our research paper, “NetInfoF Framework: Measuring and Exploiting Network Usable Information” [1], presented at ICLR 2024.
 
@@ -64,12 +61,6 @@ A node might also contain additional information:
 3. **Node label**: signifies the user's university, categorized into two groups represented by blue and red colors with acronyms: Carnegie Mellon University (CMU) or National Chiao Tung University (NCTU). 
 
 In fact, node labels are similar to node features, but they often contain missing values, which we are interested in predicting.
-
-<!-- The nodes (circles with university acronyms) represent the users, and the edges (black lines connecting circles) indicate whether two users are friends.
-The node IDs are represented by the thumbnail person images and the text names.
-The node attributes/features of users (\\( 2 \times 2 \\) tables) are whether they are located in the US and whether they like to bike. 
-The node labels of users, classified into two categories represented by blue and red colors, signify their respective universities, CMU or NCTU.
-In fact, node labels are similar to node features, but they are the ones with missing values and we are interested in predicting them. -->
 
 <figure>
 <img src="./figure2.png" alt="mathematical representation of graph" width="500"/>
@@ -107,7 +98,6 @@ Figure 3. Illustration of the nodes in a given graph projected into low-dimensio
 Message-passing methods utilize the graph structure to propagate information from the neighbors of a node to the node itself. 
 Known as sum-product message-passing, belief propagation methods [2, 3] directly perform inference on the graph through several propagation iterations. 
 Although they are fast and effective because they require neither parameters nor training, belief propagation methods are mainly designed to solve node classification problems based solely on the graph structure and usually do not consider node features.
-<!-- To properly handle the interaction between node classes, Günnemann et al. [2] assumes that a \\( c \times c \\) compatibility matrix is given by the domain expert, while Lee et al. [3] estimates it with the given graph data.  -->
 
 Another variety of message-passing methods, Graph Neural Networks (GNNs) [4], are a class of deep learning models. 
 They are commonly used to generate low-dimensional embeddings of nodes to perform graph tasks by learning end-to-end with a training objective.
@@ -116,13 +106,6 @@ As shown in Figure 3, the nodes that are better connected in the graph are expec
 Some studies remove the non-linear functions in GNNs, and still achieve good performance, which we call linear GNNs [5, 6].
 One of the many advantages of linear GNNs is that their node embeddings are available prior to model training. 
 A comprehensive study on linear GNNs can be found in [6].
-
-<!-- The function of a two-layer Graph Convolutional Network (GCN) [4] can be written as:
-\\[ \hat{Y} = A\sigma(AXW_{1})W_{2}, \\]
-where \\( A \\) is the normalized adjacency matrix with self-loop, \\( X \\) is the node features, \\( W_i \\) is the learnable matrix for the \\( i \\)-th layer, and \\( \sigma \\) is the non-linear activation function, typically a sigmoid or a ReLU.
-By removing &sigma; from the above equation, it reduces to:
-\\[ \hat{Y} = A^{2}XW, \\]
-which is a linear model with a node embedding \\( A^{2}X \\) that can be precomputed. This particular model is Simple Graph Convolution (SGC) [5], which is the first linear GNN model. One of the many advantages of linear GNNs is that their node embeddings are available prior to model training. A comprehensive study on linear GNNs can be found in [6]. -->
 
 <!-- | Symbol | Definition |
 | -------- | -------- |
@@ -177,16 +160,10 @@ Once we have the embedding that can represent the information of the nodes of th
 \\[ s = 2^{-H(Y|X)} \\]
 *where \\( H(\cdot | \cdot) \\) denotes the conditional entropy [8].*
 
-<!-- We prove that NetInfoF_Score low-bounds the accuracy: -->
-
 **Theorem 1** (NetInfoF_Score). 
 *Given two discrete random variables \\( X \\) and \\( Y \\), NetInfoF_Score \\( s \\) of \\( Y \\) given \\( X \\) lower-bounds the accuracy:*
 \\[ s = 2^{-H(Y|X)} \leq accuracy(Y|X) = \sum_{x \in X}{\max_{y \in Y}{p_{x, y}}} \\]
 *where \\( p_{x, y} \\) is the joint probability of \\( x \\) and \\( y \\).*
-
-<!-- <figure>
-<img src="./eqn1.png" alt="Definition and theorem" width="800"/>
-</figure> -->
 
 The proof is in [1].
 The intuition behind this theorem is that the conditional entropy of \\( Y \\) (e.g. labels) given \\( X \\) (e.g. “like biking”), is a strong indicator of how good of a predictor \\( X \\) is, to guess the target \\( Y \\).
