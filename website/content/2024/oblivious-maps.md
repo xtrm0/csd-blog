@@ -32,6 +32,7 @@ committee = [
 \gdef\rf{\\right \\rfloor}
 \\]
 
+
 Imagine a privacy-conscious client who wants to query a key-value store on an untrusted server equipped with a secure processor, such as an SGX processor. Being privacy-conscious, the client wants to learn the results of the queries, but an attacker running the server should not learn which queries the client performed.
 
 To efficiently protect the privacy of the client\'s queries and of the database itself, we can implement an oblivious map inside a secure enclave. This blog post explores our research on ENIGMAP[\[6\]](#cite), an efficient external-memory oblivious map designed for secure enclaves, offering significant performance improvements over previous work. 
@@ -40,7 +41,6 @@ To efficiently protect the privacy of the client\'s queries and of the database 
 Before we can dive into the details of ENIGMAP, we first need to understand a few basic concepts, including sorted maps, background on TEEs, external-memory and oblivious algorithms.
 
 ## Sorted Map
-
 In ENIGMAP, our goal is to implement an oblivious sorted map. A sorted map of size \\(N\\) is a data structure that can store up to \\(N\\) key-value pairs and efficiently supports the following operations:
 
 - **Get(key) -> value:** Returns the value associated with the key, or None if the key was not set before.
@@ -71,7 +71,8 @@ To implement a map using an AVL tree, `Get`, `Set` and `Delete` get translated t
 
 
 <!-- RFC: Is this a good joke? Should I just replace it with the other paragraph? -->
-Ok. So we know AVL tree\'s can be used to implement a map efficiently. Great! But, how can we hide the content of our queries from an attacker who runs the machine where the map is now? Isn\'t this impossible to do efficiently? Doesn't [PIR](@/2024/piano-private-information-retrieval.md) imply this problem requires either large communication or large client storage?
+Ok. So we know AVL tree\'s can be used to implement a map efficiently. Great! But, how can we hide the content of our queries from an attacker who runs the machine where the map is now? 
+<!-- Isn\'t this impossible to do efficiently? Doesn't [PIR](@/2024/piano-private-information-retrieval.md) imply this problem requires either large communication or large client storage? -->
 Well, this is where Trusted Execution Environments (TEEs) come into play. Rather than trusting standard cryptographic assumptions like Computational Diffie-Hellman or the existence of one-way functions, we instead trust... Intel! 
 
 <!--
@@ -517,6 +518,7 @@ ENIGMAP's Oblivious Sorted Map has a broad range of applications:
 + **Secure Databases**: A sorted map can be used to build databases that protect the privacy of user queries. This is especially relevant for sensitive data such as medical records, financial information, and personal communication logs.
 + **Private Contact Discovery**: Similar to the use case implemented by Signal, ENIGMAP can help in securely finding mutual contacts without revealing the contact list to the server.
 + **Cloud Computing**: With the increasing reliance on cloud services, ensuring data privacy and security is paramount. ENIGMAP allows users to securely store and query data on untrusted cloud servers while maintaining the confidentiality of their access patterns. In this setting the external memory is no longer RAM or Disk, but the remote cloud server itself.
++ **Multi-party computations**: Oblivious algorithms are directly used in MPC: every garbled circuit is an oblivious algorith, ORAM is used as a black-box in several MPC frameworks, ... A fast oblivious map is powerfull additional primitive.
 
 While ENIGMAP presents significant advancements, it also comes with certain limitations to address in future work:
 
