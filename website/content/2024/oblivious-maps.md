@@ -1,0 +1,565 @@
++++
+# The title of your blogpost. No sub-titles are allowed, nor are line-breaks.
+title = "Oblivious Maps for TEEs"
+# Date must be written in YYYY-MM-DD format. This should be updated right before the final PR is made.
+date = 2024-08-01
+
+[taxonomies]
+# Keep any areas that apply, removing ones that don't. Do not add new areas!
+areas = ["Security", "Systems"]
+# Tags can be set to a collection of a few keywords specific to your blogpost.
+# Consider these similar to keywords specified for a research paper.
+tags = ["Cryptography", "Security", "Privacy", "Oblivious Algorithms", "TEE"]
+
+[extra]
+# For the author field, you can decide to not have a url.
+# If so, simply replace the set of author fields with the name string.
+# For example:
+#   author = "Harry Bovik"
+# However, adding a URL is strongly preferred
+author = {name = "Afonso Tinoco", url = "https://cs.cmu.edu/~atinoco" }
+# The committee specification is simply a list of strings.
+# However, you can also make an object with fields like in the author.
+committee = [
+    {name = "Bryan Parno", url = "https://www.andrew.cmu.edu/user/bparno/"},
+    {name = "", url = ""},
+    {name = "Mingxun Zhou", url = "https://cs.cmu.edu/~mingxunz" }
+]
++++
+
+\\[
+\gdef\lf{\\left \\lfloor}
+\gdef\rf{\\right \\rfloor}
+\\]
+
+Imagine a privacy-conscious client who wants to query a key-value store on an untrusted server equipped with a secure processor, such as an SGX processor. Being privacy-conscious, the client wants to learn the results of the queries, but an attacker running the server should not learn which queries the client performed.
+
+To efficiently protect the privacy of the client\'s queries and of the database itself, we can implement an oblivious map inside a secure enclave. This blog post explores our research on ENIGMAP, an efficient external-memory oblivious map designed for secure enclaves, offering significant performance improvements over previous work. We will begin by defining our abstraction, following by providing key background on TEEs, external-memory and oblivious algorithms, followed by explaining our work and the key insights.
+
+
+# Sorted Map
+
+In ENIGMAP, our goal is to implement an oblivious sorted map. A sorted map of size `N` is a data structure that can store up to `N` key-value pairs and efficiently supports the following operations:
+
+- **Get(key) -> value:** Returns the value associated with the key, or None if the key was not set before.
+- **Set(key, value):** Sets or updates the value of the key.
+- **Delete(key):** Removes the key from the map.
+- **RangeQuery(keyMin, keyMax) -> [(key, value)]:** Returns all the key-value pairs in the specified range.
+
+Given that the key space is much larger than `N`, we cannot use a simple array indexed by the key to store the map. Instead, a search tree, such as a B+ tree or an AVL tree, is typically used to implement a sorted map. Following previous work[\[5\]](#cite), we chose to use an AVL tree. [^whynotbplusorhashmap]
+
+## AVL tree
+
+An AVL tree of size `N`, is a binary search tree with at most `N` nodes, and  the following properties:
+
+- **binary tree** - a tree where each node has a key, a value and has at most 2 children.
+
+- **search tree** - the key of every node is larger than the key of every node on it's left subtree and smaller than the key of every node on it's right subtree.
+
+- **AVL invariant** - the height of the two child subtrees of any node differs by at most one.
+
+The maximum height of an AVL tree of size `N` is \\( 1.44 \log_2 N\\), and  `Search(key)`, `Insert(key,value)` and `Delete(key)` operations -- with their standard semantic meaning -- can be implemented [^gowiki] accessing only \\( O(\log N) \\) nodes by doing a binary search for `key` on the tree.
+
+<!-- RFC: should this be a footnote instead? -->
+> Having a bounded height and number of nodes that are touched during an operation is important, so that the time it takes to do a query doesn\'t leak information about the query. Since the tree depth is at most \\( 1.44 \log_2 N\\), we can make every `Search` operation always touch \\( 1.44 \log_2 N\\) nodes, potentially accessing fake nodes after we found the `key` we were looking for.
+<p></p>
+
+To implement a map using an AVL tree, `Get`, `Set` and `Delete` get translated to the equivalent operations on a binary search tree (`Search`, `Insert` and `Delete`), while `RangeQuery` can be implementing by Searching for `KeyMin` and iterating over the next values on the map until we hit `KeyMax`.
+
+
+
+<!-- RFC: Is this a good joke? Should I just replace it with the other paragraph? -->
+Ok. So we know AVL tree\'s can be used to implement a map efficiently. Great! But, how can we hide the content of our queries from an attacker who runs the machine where the map is now? Isn\'t this impossible to do efficiently? Doesn't [PIR](@/2024/piano-private-information-retrieval.md) imply this problem requires either large communication or large client storage?
+Well, this is where Trusted Execution Environments (TEEs) come into play. Rather than trusting standard cryptographic assumptions like Computational Diffie-Hellman or the existence of one-way functions, we instead trust... Intel! 
+
+> The **"Enclave Assumption"** -- code inside an enclave runs under the crash-fault model (it either runs the correct computation or crashes, without unexpected behaviors), all of it\'s memory contents are encrypted, and the speed of the code running is similar to if it was not inside of an enclave.
+<p></p>
+
+<!--
+While AVL trees provide an efficient and well-structured way to manage key-value pairs, implementing them in a secure and privacy-preserving manner requires additional considerations, especially in the context of limited secure memory provided by Trusted Execution Environments (TEEs).
+-->
+
+# TEEs and External Memory
+`Trusted Execution Environments` (TEEs), like Intel SGX, provide isolated execution environments for sensitive computations. They ensure that data and code running inside of a secure memory region called an `enclave` are protected from external tampering and observation, even if the operating system is compromised. However, TEEs come with limited secure memory, which poses a challenge for applications to handle large datasets securely.
+
+To manage datasets that don\'t fit in the TEE, data must frequently be swapped between the secure enclave memory - called Enclave Page Cache (EPC) - and insecure **external memory** (RAM or disk). This swapping process, known as page swapping, can significantly impact performance due to the overhead of moving data in and out of the enclave, context switching, and the need to encrypt and decrypt data during these transfers. In fact, we manually measured it (figure 1), and the cost of an **external memory** access in SGXv2 is about 47x-80x slower than that of moving a page of memory inside the enclave protected memory. 
+
+> Optimizing the number of **external memory** page swaps is crucial for enhancing the performance of applications running in TEEs.
+<p></p>
+
+![A graph showing the time of several operations in SGXv2 relative to moving a page in enclave memory. Moving swapping to unprotected RAM is about 47x slower, while swapping to disk is 80x slower.](intrinsics.png)
+**Figure 1** - *Cost of PageSwap operation of 4KB relative to a MOV of 4KB inside of enclave protected memory. A page swap is about 47
+times more expensive than moving 4KB in memory within the enclave.
+The costs are color-coded which shows the cost breakdown.* **EWB** *- enclave write back (the mechanism used by the operating system to swap enclave pages),* **OCall** - *using SGX*\'s *OCall mechanism so the enclave application manually swaps pages*.
+<p></p>
+
+
+
+Additionally, all the accesses to the external memory can be seen by the operating system and thus by an attacker running the server. Therefore, these accesses should not reveal any information about the client\'s queries. This is where oblivious algorithms come into play.
+
+# Oblivious Algorithms
+
+> An **oblivious algorithm** is an algorithm that doesn\'t leak any information about it\'s inputs to an attacker that has access some trace of the algorithm\'s execution.
+<p></p>
+
+In the context of TEEs there are 3 traces to consider:
+
+1) The addresses of external memory accesses - when we need to access disk the operating system can always see which disk pages we accessed without any physical attacks. [\[3\]](#cite)
+
+2) The addresses of every RAM access inside of the TEE protected memory - in SGX, it is still the operating system that manages memory pages, therefore the operating system can know at the page level which addresses were accessed [\[3,4\]](#cite)
+
+3) The instruction trace - the list of executed instructions, since the way CPU fetches instructions is by reading RAM addresses. [\[4\]](#cite)
+
+Algorithms that are oblivious with respect to only 1) are typically called `weakly oblivious` or `external memory oblivious`; while algorithms that are oblivious with respect to 1), 2) and 3) are called `strongly oblivious` or simply `oblivious algorithms`. 
+
+In this blogpost we will focus on `strongly oblivious algorithms`. In this notion:
+
+1) Only the traces of the CPU registers and CPU caches are private.
+
+2) The limited enclave protected memory is encrypted and accessible to the enclave, even though it\'s memory access trace is public.
+
+3) The external memory is public, and therefore the enclave needs to encrypt data before moving it there.
+
+## Oblivious Algorithms in practice
+
+So, how do oblivious algorithms look like in practice? Lets consider the following function:
+
+<!-- The concept of oblivious algorithms is also tied to the concept of constant-time algorithms, as the attacker can also learn information based on the number of memory accesses executed. -->
+
+```c++
+const int PASSWORD_SIZE;
+char CORRECT[PASSWORD_SIZE];
+bool check_password_nonoblivious(char input[PASSWORD_SIZE]) {
+    for (int i=0; i<PASSWORD_SIZE; i++) {
+        if (CORRECT[i] != input[i]) return false;
+    }
+    return true;
+}
+```
+**Listing 1** - *A non-oblivious version of the check_password function - based on the number of instructions executed an attacker can learn the size of the common prefix between CORRECT and input*
+
+In *Listing 1*, the attacker can infer how many initial characters of the input are correct based on the number of memory accesses that `check_password` used, therefore it is not an oblivious algorithm. To make it oblivious, we can make use of the Conditional Mov x86 instruction - `CMOV(cond, target, value)`. 
+
+> The `CMOV(cond, target, value)` instruction assigns `value` to `target` if `condition` is true, but always fetches `target` and `value` from memory, resulting in a constant memory trace.
+<p></p>
+
+Here is the same code made oblivious with `CMOV`:
+```c++
+bool check_password_oblivious(char input[PASSWORD_SIZE]) {
+    bool ret = true;
+    for (int i=0; i<PASSWORD_SIZE; i++) {
+        bool condition = CORRECT[i] != input[i];
+        CMOV(condition, ret, false);
+    }
+    return ret;
+}
+```
+**Listing 2** - *An oblivious version of the check_password function - the memory access trace is now constant*
+
+If you are familiar with *constant time cryptography* you probably noticed that this oblivious algorithm is in fact also a [constant time algorithm](https://www.bearssl.org/constanttime.html). These two notions are closely related, since if an attacker knows the memory addresses accessed the attacker knows same information that would be available from timing attacks. 
+
+However, in the oblivious notion, even accessing an array index can leak information about the data being processed:
+
+```c++
+int access_array_nonoblivious(int Array[MAX_SIZE], int i) {
+    return Array[i];
+}
+```
+**Listing 3** - *A non-oblivious array access*
+
+When we call `access_array_nonoblivious`, we will access the memory address `(A+i)`. If an the attacker can see every address we use, then the attacker can learn if two calls to this function have the same arguments. To protect against this, we could again rely on a constant time algorithm - by scanning the entire array every time we need to access a single index:
+
+```c++
+int access_array_linear_scan(int Array[MAX_SIZE], int index) {
+    int ret = 0;
+    for (int j=0; j<MAX_SIZE; j++) {
+        CMOV(j==i, ret, Array[i]);
+    }
+    return Array[i];
+}
+```
+**Listing 4** - *An oblivious array access via linear scan - this takes time[^timemeaning] \\( O( \\) MAX_SIZE \\() \\)*
+
+While using a linear scan for each array access ensures obliviousness, it is highly inefficient - we need to transverse the whole array every time we want to access a single element. (However, this kind of linear scan solution is used in practice, for instance, Signal used it along with other techniques to offer [private contact discovery](https://signal.org/blog/private-contact-discovery/)).
+
+To address this inefficiency, more sophisticated methods to hide which index of an array is accessed have been developed that no longer have a constant memory access trace, but instead a random-looking one, like Path ORAM.
+
+## PathORAM
+
+Path Oblivious RAM (PathORAM)[\[1\]](#cite) is an efficient protocol designed to hide the access patterns to an array of size `N`. The key insight for PathORAM is that rather than doing a linear scan to have a constant trace, we keep dynamically moving data in unprotected memory, so that the memory access trace is indistinguishable from that of accessing random positions in the array, this is, so that nothing can be inferred from the memory access trace about which indexes we are accessing. 
+
+### Interface for PathORAM
+
+Path ORAM provides a straightforward interface:
+
+```c++
+void Access(bool readOrWrite, int addr, int& pos, int& data)
+```
+> Performs a read or write operation (`readOrWrite`) on the specified address `addr` which is at the position `pos`, reading or writing to `data`. 
+<p></p>
+
+Each address is assigned a random `pos` that reveals where an address is stored. Whenever an addresses is accessed, it\'s `pos` is leaked since we access the locations related to that position, but a new random `pos` is generated for that address. From the memory access trace, we can only see a sequence of random positions being accessed.
+
+### How Path ORAM works
+
+In PathORAM each array index is stored as a block: 
+```c++ 
+template <typename T>
+struct Block{ 
+    int address;
+    int position; // only used if the block is in the stash
+    T data;
+}
+```
+PathORAM has two major structures:
+
+1) **Stash** - where we keep recently accessed blocks. The stash has a constant maximum size and is accessed using linear scans.
+
+2) **ORAM Tree** (figure 2) - an almost[^acbst] complete binary tree with `N` leafs where each node is called a Bucket and can have up to `Z` (typically `Z=4`) blocks of data. Whenever we access this tree we will leak which nodes are being accessed in the trace.
+
+The `position` mentioned in the PathORAM interface identifies a unique path from the root to a leaf in this tree.
+
+![A visualization of ORAM](orambasic.png)
+**Figure 2** - *A visualization of PathORAM tree with `Z=4` where path 2 - the path with all the buckets that could contain position 2 is highlighted.*
+
+When we construct the ORAM, every address is assigned a random `position` which we need to keep track of (we will explain how we do this later for a binary search tree in the next section - [Oblivious Data Structures](#keeptrackofpositions)) and will later be placed in some bucket in that path from root to a leaf. When the access operation is called, the PathORAM algorithm does the following steps:
+
+1) **Read Path** - Reads all the buckets on the path identified by the original position of the address to the stash.
+
+2) **Generate new position** - Generate a new random position for the address we just accessed.
+
+3) **Stash Operation** - Do a linear scan over the stash to do the read/write operation on the address we want and update it\'s position.
+
+4) **Stash Eviction** - Pick a random path, and try to obliviously move blocks from the stash to this path - without revealing how many blocks were moved and the locations they were moved to. After this operation, the remaining number of blocks on the stash is bellow a small constant with very high probability [^infoconstant]
+
+For this blogpost, the main result from PathORAM is, provided can keep track of the positions in some way (see [section Oblivious Data Structures](#keeptrackofpositions)), we can do the access operation in an ORAM of size `N` in \\( O(\log N \log\log^2 N) \\) (non-private) memory accesses. [^readpathoram] 
+
+Let\'s see now how can we keep track of the node positions for a binary search tree.
+
+
+## Oblivious Data Structures {#keeptrackofpositions}
+
+In order to keep track of the positions of all the nodes in a binary search tree, we can use the insight from the Oblivious Data Structures (ODS) paper[\[2\]]:
+> **we only need to store the position of the root node** - since every operation in a binary search tree always accesses the nodes starting from the root of the binary search tree, we can store in each node the position of it\'s two children directly (See figure 3).
+<p></p>
+
+This works, since when we want to access the children of a node, we can generate ahead of time the new random position for it\'s children and store it in the parent before actually accessing the children. 
+
+![AVL Tree and how it is mapped to ORAM](avloram.png)
+**Figure 3** - *A visualization of the logical AVL tree and how it is mapped to the PathORAM tree.*
+
+This insight from ODS, was previously implemented in the Oblix paper [\[5\]](#cite), where an oblivious avl tree was used to developed an oblivious map. In ENIGMAP, we focus on practical optimizations related to TEEs.
+
+# ENIGMAP
+
+Our main contributions of ENIGMAP are:
+
+1) Identifying external memory accesses as an important cost of oblivious algorithms in TEEs (figure 1.), and optimizing the algorithms both in terms of external memory accesses as well as executed instructions.
+
+2) An asymptotically and concretely faster oblivious map, that is *strongly oblivious*, with the optimizations we will describe bellow, both in number of instructions executed as well as external memory accesses - which on queries has a 130x speedup compared to previous SoTA in scenarios where external memory isn't used, and a 2x speedup compared to previous SoTA when external memory isn't used (section [Main Query Optimizations](#mainqueryoptimizations))
+
+3) A faster initialization algorithm for oblivious maps, making it practical for large database sizes. (section [Fast Initialization Algorithm](#fastinitializationalgorithm))
+
+**Let\'s take a look at some of the optimizations done in ENIGMAP!**
+
+## Main Query Optimizations {#mainqueryoptimizations}
+
+### Optimization 1 - Locality Friendly Layout for the ORAM tree
+
+To improve the locality of data accesses, ENIGMAP leverages concepts from cache-oblivious algorithms and van Emde Boas (vEB) layout. By organizing the ORAM tree in a cache-efficient manner, we reduce the number of page swaps needed to access a path, significantly improving access times[^btwnotonlyexternalmemory]. Lets see how, assuming we have a large ORAM of size `N` and in each external memory disk page we can fit up to `B` buckets.
+
+When we want to access an AVL tree node, we need to call Access on the ORAM to get that AVL tree node (recall from figure 3 that each AVL node is stored in the ORAM), and therefore we will have to read all the Buckets in the path where that AVL tree node is stored. 
+
+If we were to store the buckets in heap layout - this is level by level left to right - we would have to read \\( log{N} \\) pages, since apart from the first few levels, all the buckets would end up in different pages (see Heap Layout in Figure 4).
+
+> Instead, ENIGMAP uses a locality friendly layout[^noteembdaboas] - we find out the size of the largest ORAM subtree that fits in a page (it\'s height is \\( \lf log_2{B} \rf \\) ) and store subtrees of that size together in the disk page (see Our Layout in Figure 4) . This optimization allows to only have to read \\( log{\frac{N}{B}} \\) pages per ORAM access.
+<p></p>
+
+
+![alt text](treepacking.png)
+**Figure 4** - *Comparison of Heap Layout with the Layout used in ENIGMAP. To read a given path ENIGMAP reads an optimal number of pages, while the Heap layout will read one page per bucket.*
+
+### Optimization 2 - Ensuring integrity and freshness with low cost
+
+Another key optimization that comes from the locality friendly layout, is that we can ensure integrity and freshness of data in external memory with almost no extra cost. Since we always access ORAM pages in a path from the root and each friendly-layout subtree corresponds to disk page, we can build a merkle tree of the friendly-layout subtrees. Each subtree is encrypted with AES-GCM, and stores the nonce of it's children subtrees encryptions. The main application only needs to keep the nonce of the root subtree to ensure integrity and freshness.
+
+![alt text](friendlylayout_integrity.png)
+**Figure 5** - *Achieving integrity protection efficiently in external memory on a tree can be done with a merkle-tree. The fact we have subtrees packed together allows us to have good nonce size to data size ratio.*
+
+### Optimization 3 - Multi-level caching + batching
+
+ENIGMAP employs a multi-level caching scheme to optimize data access:
+
++ **Page-Level Cache**: Outside the enclave, this cache reduces the frequency of page swaps from disk.[^sgxv2tdxbad]
+
++ **Bucket-Level Cache**: Inside the enclave, it caches frequently accessed data to minimize external-memory calls, specifically we cache the top levels of the ORAM tree to always be inside the enclave.
+
++ **AVL-Tree node Cache**: This cache is specifically designed to optimize searches within the AVL tree. It is implemented by allowing to mark AVL nodes as sticky - these nodes should stay in the stash during eviction, until we mark them as non-sticky. If it's public a node is sticky, we can just access it directly via a linear scan from the stash, without paying the ORAM overhead. We use this optimization in two ways:
++ + **AVL tree top caching** - the first few AVL levels during search can just be accessed via linear scan.
++ + **AVL batched operations** - when we do an AVL tree insertion, we need to do two passes over the same AVL path. In the first pass, we mark all the nodes we will have to access as sticky, so that on the second pass we can access them faster via a linear scan of the stash.
+
+To read about further optimizations and how each of these optimizations impacts performance, we suggest you take a look at the ENIGMAP paper [\[6\]](#cite).
+
+<!--
+### Optimization 4 - Optimized Insertion
+
+> RFC: this needs a lot of details on AVL tree insertion and isn't important for queries, so I wrote it this way. should I keep it or remove it?
+
+When we do an AVL tree insertion, the tree can potentially lose the AVL Property (TODO: add link), and we need to do rotation operations to restore it. In the non-oblivious setting, where we don't need our code to hide where the insertion was done, insert is typically a recursive function that calculates in every subcall if a rotation is needed. To translate this to the oblivious setting, we would have to simulate doing a rotation in every node in the insertion path, which is suboptimal, because the AVL tree can always be rebalanced after an insertion in two rotations. 
+
+Instead, in Enigmap we wrote an iterative AVL insertion that does a first pass to find the rotation and insertion points, does the rotations and then does the second pass to finish insertion. -->
+
+
+## Fast Initialization Algorithm {#fastinitializationalgorithm}
+
+Imagine we have an array of N key-value pairs, and want to initialize an oblivious map based on it. The simplest solution (Naive Solution), would be to start with an empty map, and call `Set(key, value)` once for each key-value pair, this would cost us `N` AVL Tree insertions. 
+> We can do better, by constructing the whole AVL tree and ORAM all at once. 
+<p></p>
+
+Our Initialization algorithm works in two phases:
+
++ **[Phase 1](#phase1)** - we build the logical AVL tree nodes with the correct random positions assigned.
+
++ **[Phase 2](#phase2)** - we place the nodes into the ORAM tree obliviously. This part is just a PathORAM initialization algorithm.
+
+In order to better explain the algorithm detailed in the paper, we will go over it step by step example. For the sake of simplicity we will represent each key-value pair in the initial array by its key:
+
+![alt text](init_part1.png)
+
+### Phase 1 - AVL Tree Construction {#phase1}
+
+In the first phase of the algorithm, our goal is to build the AVL tree, by assign random positions to all the nodes, and correctly assigning children and storing the children's position on each node such that the AVL tree properties are preserved.
+
+We start by obliviously sorting[^osort] the array and assigning random positions to each node[^nosortneeded]:
+![alt text](init_part2.png)
+
+After sorting, the array in an implicit binary search tree with the AVL property, built by recursively splitting the array in half. So now, we need to correctly store the children positions on each node:
+
+![alt text](init_part3.png)
+
+To do so, we use the propagate procedure described in the paper - *Listing 5*. For our example, the propagate algorithm for our array should be called as Propagate(arr, 0, 7).
+
+```c++
+struct AddrPos {
+    int addr;
+    int pos;
+};
+
+struct Node {
+    int key;
+    AddrPos left, right;
+    AddrPos ap; // exists only during the construction algorithm.
+};
+
+AddrPos Propagate(vectorExternalMemory<Node>& nodes, int left, int right) {
+    int curr = (left + right) / 2;
+    int size = right - left + 1;
+    if (size == 1) return nodes[curr].ap;
+    nodes.MarkSticky(curr);
+    nodes.left = Propagate(nodes, left, mid-1);
+    nodes.right = Propagate(nodes, mid+1, right);
+    nodes.MarkNotSticky(curr);
+}
+```
+**Listing 5** - *Propagate procedure pseudocode*
+
+The propagate function will be called once for each node. Every time we access a node, we pin it so it won't be swapped into external memory and then recurse on each children to get it's position and keep updating the indices. This means each node will be transferred at most once from external memory, and at any given time we will only have at most \\(\log N\\) nodes pinned - since that is the maximum tree depth. Therefor this algorithm will incur at most `N` external memory transfers.
+
+Notice that the memory access pattern is oblivious since it depends only on the length of the array, and not on the content of the key-value pairs themselves. 
+
+In figure 6, we show how the algorithm proceeds. 
+
+<!-- ![alt text](image.png)
+![alt text](image-1.png)
+![alt text](image-2.png)
+![alt text](image-3.png)
+![alt text](image-4.png)
+![alt text](image-5.png) -->
+![alt text](image_together.png)
+**Figure 6** - *Visualization of the propagate procedure* 
+
+Apart from the initial sorting, each Phase 1 stage does a linear number of external memory accesses and computation steps. 
+
+### Phase 2 - PathORAM Initialization {#phase2}
+
+The second phase of the algorithm is an ORAM initialization algorithm - we have the content of all the block, as well as randomly assigned positions for each block, and now we want to place them in the ORAM tree without leaking where each block is stored. We encourage you to read about it in our paper [\[6\]](#cite).
+
+For now, let\'s take a look at the performance of ENIGMAP.
+
+<!--
+(TODO: RFC: Should I include here an explanation of the PathORAM initialization algorithm like the phase 1 example? I already have the figures, but this is not a contribution from our paper nor needed to explain any concept)
+-->
+
+# Results
+
+In order to evaluate ENIGMAP, we compare the performance of each map operation against two implementation:
+
++ Signal\'s [Linear Scan Solution](https://signal.org/blog/private-contact-discovery/) - Which does a linear scan of the whole database for a batch of \\( \beta \\) queries, indexing each entry of the database on an hashtable built obliviously from the batch of queries.
+
++ Oblix [\[5\]](#cite) - Previous SoTA, also uses an ODS-based AVL tree.
+
+> Experimental Setup
+> + **Database Size (N):** We tested with varying sizes, up to 256 million entries.
+> + **Batch Size (\\( \beta \\)):** Because Signal's solution is optimized to work with Batches of queries, we introduce the parameter \\( \beta \\) to define the number of queries in a batch. We used batch sizes of 1, 10, 100, and 1000 queries.
+> + **SGX Setting:** In the paper we tested our experiments for enclaves with both little EPC size (128mb) and large EPC size (192GB), on a machine with 256GB of non-EPC RAM. In this blogpost we will report results for large EPC size only. [^largeepcbad]
+> + **Key size:** All the keys in the experiments have 8 bytes each.
+
+
+## `Get` Latency
+
+We analyzed the performance of doing batches of \\( \beta \\) `Get` operations on each map implementation, in terms of latency and throughput.
+
+> At a database size of \\(2^{26}\\), ENIGMAP achieves a troughput speedup of 2x on `Get` queries, while mantaining a latency per `Get` of 0.45ms compared to Signal\'s 930ms and Oblix\'s 11ms.
+
+> At a database size of \\(2^{32}\\), ENIGMAP achieves a troughput speedup of 130x on `Get` queries, while mantaining a latency per `Get` of 2ms compared to Signal\'s 133000ms.
+
+### Asymptotics
+
+<!--
+In terms of query throughput and latency, we are assymptotically faster than both Oblix and Signal, as we can see from Table 1.
+-->
+
+| Scheme  | Page Swaps | Compute |
+|---------|-------------------------------------------|----------------------------------------|
+| Signal  | \\( O\left(\frac{N}{B}\right) \\)         | \\( O(N + \beta^2) \\)                           |
+| Oblix   | \\( O\left(\beta \log^2 N\right) \\)      | \\( O\left(\beta \log N \log \log N\right) \\) |
+| ENIGMAP | \\( O\left(\beta \log_B N \log N\right) \\) | \\( O\left(\beta \log N \log \log N\right) \\)  |
+
+*Table 1 - Cost of a batch of \\( \beta \\) `Get` queries, on a map with N elements, page size B (key-value pairs) and EPC of size M (key-value pairs)*
+
+### Experimental Latency
+
+<!--
+| \\( \beta \\) | Signal (ops/s) | Oblix (ops/s) | ENIGMAP (ops/s) | Signal (latency \\( ms\\)) | Oblix (latency \\( ms\\)) | ENIGMAP (latency \\( ms\\)) |
+|--------------------------|------------------|-----------------|-------------------|------------------|-----------------|-------------------|
+| 1  | 1.1 | 91.5 | **2200** | 920 | 11 | **0.45**  |
+| 10 | 10.9 | 91.4 | **2200** | 921 | 109 | **4.58**  |
+| 100 | 109 | 91.1 | **2200** | 924 | 1096 | **45.8**  |
+| 1000 | 1086 | 90.6 | **2200** | 930 | 11040 | **458**  |
+
+*Table 3 - Throughput of each solution for varying batch sizes at a database size \\(N=2^{26}\\). The best results for each row are shown in bold.*
+
+
+| \\( \beta \\) | Signal (ops/s) | ENIGMAP (ops/s) | Signal (latency \\( ms\\)) | ENIGMAP (latency \\( ms\\)) |
+|--------------------------|------------------|-----------------|-------------------|------------------|
+| 1  | 0.008 | **970** | 133507 | **1.03**  |
+| 10 | 0.008 | **970** | 133502 | **10.3**  |
+| 100 | 0.008 | **970** | 133522 | **103**  |
+| 1000 | 0.008 | **970** | 133531 | **1027**  |
+
+*Table 4 - Throughput of each solution for varying batch sizes at a database size \\(N=2^{32}\\). The best results for each row are shown in bold.*
+-->
+
+![alt text](graph_query.png)
+**Figure 7** - *Comparison of ENIGMAP and Signal on
+SGXv2. Enclave memory size is 192GB, RAM size is
+256GB. The vertical lines mark when ENIGMAP and Signal
+start to incur RAM and disk swaps, respectively. Comparisson with Oblix in our paper is done through relative comparisson to Signal (refer to figure 9 in [\[5\]](#cite))*
+
+*Figure 7* shows that:
+- In terms of latency (measured at \\(\beta=1\\)), ENIGMAP always outperforms Signal (and Oblix). 
+- In terms of throughput, for batch sizes of 10, 100 and 1000, ENIGMAP starts to outperform Signal at a database sizes of 2^{17}, 2^{22}, and 2^{25}, respectively. Signal quadratic computation term on the batch size makes it perform worse with batches larger than the ones tested.
+
+In the ENIGMAP paper, we also analyze the query performance of Insertions and Deletions, as well as analyze the same experiments with different EPC and external memory constraints. The key takeaway is that for medium and large database sizes (larger than 2^{25} entries), ENIGMAP's throughput always outperforms the linear scan solution, making clear the praticality of ODS for TEEs.
+
+## Initialization
+
+We analyzed how long it takes to initializing an oblivious map of `N` entries.
+
+> At a database size of \\(2^{26}\\), ENIGMAP's initialization takes 9.5h, a speedup of 18x compared to Oblix, but much slower than the few minutes Signal\'s needs to create an enclave and write the key-value pairs to enclave memory.
+
+
+<!--
+In terms of initialization, we are faster than Oblix, but worse than signal, since their initialization is just copying a single array from outside the enclave to the enclave, as we can see from Table 2.
+-->
+
+### Initialization - Assymptotics 
+
+| Scheme  | Page Swaps | Compute |
+|---------|----------------------------------|--------------------------------|
+| Signal  | \\( O\left(\frac{N}{B}\right) \\) | \\( O(N) \\)                   |
+| Oblix   | \\( O\left(\frac{N}{B} \log^2 N\right) \\) | \\( O(N \log N) \\)            |
+| ENIGMAP | \\( O\left(\frac{N}{B} \log_{\frac{M}{B}} \frac{N}{B}\right) \\) | \\( O(N \log N) \\)            |
+
+**Table 2** - *Cost of initializing a map with N elements, page size B (key-value pairs) and EPC of size M (key-value pairs)*
+
+### Initialization - Experimental
+
+![alt text](graph_init.png)
+**Figure 8** - *Initialization cost of ENIGMAP, compared to our implementation of Oblix's initialization and to the Naive Initialization - doing N insertions on the database*
+
+*Figure 8* shows that Enigmap\'s initialization outperforms Oblix's by 2-18x depending on the database size. This improvement in initialization time is crucial for making ODS practical for larger database sizes. However, at 9.5h for \\(N=2^{26}\\), Enigmap\'s initialization is still much slower than Signal\'s linear scan initialization, which only takes a few minutes since it only needs to create a large enclave and copy the key-value pairs there. [^notallhopelost]
+
+
+### Results summary
+
+ENIGMAP shows remarkable improvements in query performance, achieving significantly faster throughput and lower latency compared to Signal\'s linear scan solution and Oblix\'s ODS-based AVL tree. Specifically:
+
++ **Query Throughput**: ENIGMAP consistently outperforms both Signal and Oblix. At larger database sizes, ENIGMAP achieves up to 130x speedup over Signal for `Get` queries. This makes it highly efficient for handling large volumes of queries in practical applications.
+
++ **Query Latency**: ENIGMAP maintains low latency per query making it suitable for real-time applications. For example, at a database size of \\(2^{26}\\), ENIGMAP\'s latency per `Get` is 0.45ms compared to Signal\'s 930ms and Oblix\'s 11ms. This significant reduction in latency ensures quick response times for individual queries.
+
+While ENIGMAP excels in query performance, its initialization time is slower compared to Signal's solution. This tradeoff highlights that while ENIGMAP's initialization is slower, its higher throughput and low latency make it highly practical for applications where query performance is more critical than initialization time.
+
+# Applications, Limitations and Open Problems {#finale}
+
+ENIGMAP's Oblivious Sorted Map has a broad range of applications:
+
++ **Secure Databases**: A sorted map can be used to build databases that protect the privacy of user queries. This is especially relevant for sensitive data such as medical records, financial information, and personal communication logs.
++ **Private Contact Discovery**: Similar to the use case implemented by Signal, ENIGMAP can help in securely finding mutual contacts without revealing the contact list to the server.
++ **Cloud Computing**: With the increasing reliance on cloud services, ensuring data privacy and security is paramount. ENIGMAP allows users to securely store and query data on untrusted cloud servers while maintaining the confidentiality of their access patterns. In this setting the external memory is no longer RAM or Disk, but the remote cloud server itself.
+
+While ENIGMAP presents significant advancements, it also comes with certain limitations:
+
+**Initialization Time**: The initialization time for ENIGMAP is slower compared to simpler solutions like Signal's linear scan. For large databases, this initialization time can be a bottleneck. Future work should explore how to minimize the initialization time of ORAMs/ODSs in the TEE setting, there is still room for improvement. In [\[7\]](#cite) we develop a TEE external-memory optimized oblivious sorting algorithm that significantly improves ORAM initialization time. Exploring using other types of BST\'s instead of AVL can also improve initialization time.
+
+**Memory Overheads**: The use of oblivious algorithms and PathORAM requires additional memory to store metadata, such as positions and encrypted blocks, as well a linear ammount of fake metadata used to store fake blocks, which may be a constraint in memory-limited environments. 
+
+**Exploring other BST implementations**: In non-oblivious databases, typically B+ trees, AVL trees, skip-lists, or variations of them are used for indexes. It would be interesting to explore in depth the tradeoffs between each of these solutions.
+
+Our code [is available on github](https://github.com/odslib/odsl), as well as ongoing work on [more efficient oblivious maps](https://github.com/gty929/oram).
+
+
+
+
+[^whynotbplusorhashmap]: In our research, we considered both AVL trees and B+ trees. We opted for AVL trees in Enigmap because previous work had successfully used them, and for the specific problems we were addressing, the key and value sizes were relatively small. If range queries were not required, a hash table could be a faster alternative to a search tree
+
+[^gowiki]: To learn how each of the operations are implementable, the wikipedia page on AVL trees is a great starting point.
+
+[^timemeaning]: Both number of CPU instructions as well as number of memory accesses whose trace is public.
+
+[^acbst]: An **almost complete binary tree** of size N is a binary tree with N leafs where all the levels except the last one are full. The last level should have the N leftmost leafs only.
+
+[^infoconstant]: The failure probability is negligible on the stash size - the probability of the stash becoming larger than K after an operation is  \\( o(2^{-K}) \\)[\[1\]](#cite).
+
+[^readpathoram]: I suggest reading the PathORAM paper [\[1\]](#cite) for more details on why the stack size is kept constant, how initialization works, and the recursive ORAM technique used to store the positions of all the addresses.
+
+[^btwnotonlyexternalmemory]: This locality friendly layout is usefull also in the scenario where we don't have disk, since it can also translate to RAM pages that don't need to be cached, or it can also make trees with smaller nodes fit in cpu cache lines directly.
+
+[^noteembdaboas]: This is not the Embe Boas layout - we don't need to be cache-agnostic, since we know what is the page size for disk and SGX and can experimentally measure is, as you can find in the paper.
+
+[^sgxv2tdxbad]: This cache is not as usefull in SGXv2/TDX, since all the RAM can be used as part of the enclave.
+
+[^osort]: Oblivious Sorting can efficiently be done on an array of size N in time \\(O(N \log^2 N)\\) [\[7\]](#cite).
+
+[^nosortneeded]: If the key value pairs are already sorted by key, we can instead just verify they are in a linear scan.
+
+[^largeepcbad]: These larger EPC sizes have weaker security guarantees - EPC memory in RAM no longer has freshness check, therefore the hardware TCB is no longer just the CPU, but all of the machine hardware instead. There has been a shift in industry interest towards larger enclaves sizes recently as they become available on cloud datacenters. The assumption of having to trust the hardware is guaranteed by a "proof of cloud" - a cloud provider signs they are running the enclave and, since there is huge economical loss if cloud providers to lie, developers can trust the hardware is not being tampered with. (Since this is now an utility based model, in large EPC's trusting an SGX enclave will follow the Crash-Fault model is now risk management rather than an expected guarantee)
+
+[^notallhopelost]: Not all hope is lost in terms of initialization time, from our ongoing experiments, we believe the initialization time for binary search trees can be further improved, if we move away from AVL trees.
+
+# Bibliography {#cite}
+
+1. E. Stefanov, M. Van Dijk, E. Shi, T.-H. H. Chan, C. Fletcher, L. Ren, X. Yu, and S. Devadas. "Path ORAM: An Extremely Simple Oblivious RAM Protocol." *Journal of the ACM (JACM)* 65, 4, Article 18 (August 2018), 26 pages. [https://doi.org/10.1145/3177872](https://doi.org/10.1145/3177872)
+
+2. X. S. Wang, K. Nayak, C. Liu, T.-H. H. Chan, E. Shi, E. Stefanov, and Y. Huang. "Oblivious Data Structures." *Proceedings of the 2014 ACM SIGSAC Conference on Computer and Communications Security (CCS '14)*, Association for Computing Machinery, New York, NY, USA, 2014, pp. 215-226. [https://doi.org/10.1145/2660267.2660314](https://doi.org/10.1145/2660267.2660314)
+
+3. V. Costan and S. Devadas. "Intel SGX Explained", *Cryptology ePrint Archive*, Report 2016/086. [https://eprint.iacr.org/2016/086.pdf](https://eprint.iacr.org/2016/086.pdf)
+
+4. J. V. Bulck, F. Piessens, and R. Strackx. 2017. "SGX-Step: A Practical Attack Framework for Precise Enclave Execution Control." *In Proceedings of the 2nd Workshop on System Software for Trusted Execution (SysTEX'17)*, Association for Computing Machinery, New York, NY, USA, Article 4, 1–6. [https://doi.org/10.1145/3152701.3152706](https://doi.org/10.1145/3152701.3152706)
+
+5. P. Mishra, R. Poddar, J. Chen, A. Chiesa, and R. A. Popa. "Oblix: An Efficient Oblivious Search Index." 2018 IEEE Symposium on Security and Privacy (SP), San Francisco, CA, USA, 2018, pp. 279-296. [https://doi.org/10.1109/SP.2018.00045](https://ieeexplore.ieee.org/document/8418609)
+
+6. A. Tinoco, S. Gao, and E. Shi. "EnigMap: External-Memory Oblivious Map for Secure Enclaves." *32nd USENIX Security Symposium (USENIX Security 23)*, Anaheim, CA, August 2023, pp. 4033-4050. ISBN: 978-1-939133-37-3. [https://www.usenix.org/conference/usenixsecurity23/presentation/tinoco](https://www.usenix.org/conference/usenixsecurity23/presentation/tinoco)
+
+7. T. Gu, Y. Wang, B. Chen, A. Tinoco, E. Shi, K. Yi. "Efficient Oblivious Sorting and Shuffling for Hardware Enclaves", *Cryptology ePrint Archive*, Report 2023/1258. [https://eprint.iacr.org/2023/1258](https://eprint.iacr.org/2023/1258)
