@@ -69,7 +69,7 @@ An AVL tree of size \\(N\\) is a binary search tree with at most \\(N\\) nodes, 
 The maximum height of an AVL tree of size \\(N\\) is \\( 1.44 \log_2 N\\), and  `Search(key)`, `Insert(key,value)` and `Delete(key)` operations -- with their standard semantic meaning -- can be implemented [^gowiki] to only access \\( O(\log N) \\) nodes by doing a binary search for `key` on the tree. [^boundedheightimportant]
 
 ![An example avl tree](avl.png)
-**Figure 0** - *An example AVL tree. Each node is represented only by its key. To search for the key 26, we would touch the nodes on the path from the root: 42, 20, 27 and 26.* 
+**Figure 2** - *An example AVL tree. Each node is represented only by its key. To search for the key 26, we would touch the nodes on the path from the root: 42, 20, 27 and 26.* 
 
 <!-- TODO: Add avl tree picture here -->
 
@@ -90,13 +90,13 @@ While AVL trees provide an efficient and well-structured way to manage key-value
 > The **"Enclave Assumption"** -- code inside an enclave runs under the crash-fault model (it either runs the correct computation or crashes, without unexpected behaviors); all of its memory contents are encrypted; and cannot be accessed by any other applications running on the same machine; and the speed of code execution is similar to if it was not inside of an enclave.
 <p></p>
 
-To manage datasets that don\'t fit in the TEE, data must frequently be swapped between the secure enclave memory - called Enclave Page Cache (EPC) - and insecure **external memory** (RAM or disk). This swapping process, known as page swapping, can significantly impact performance due to the overhead of moving data in and out of the enclave, context switching, and the need to encrypt and decrypt data during these transfers. In fact, we manually measured the cost of **external memory** accesses (Figure 1) - in SGXv2 copying a page from **external memory** to the EPC is about 47x-80x slower than copying the same amount of data inside of the EPC. 
+To manage datasets that don\'t fit in the TEE, data must frequently be swapped between the secure enclave memory - called Enclave Page Cache (EPC) - and insecure **external memory** (RAM or disk). This swapping process, known as page swapping, can significantly impact performance due to the overhead of moving data in and out of the enclave, context switching, and the need to encrypt and decrypt data during these transfers. In fact, we manually measured the cost of **external memory** accesses (Figure 2) - in SGXv2 copying a page from **external memory** to the EPC is about 47x-80x slower than copying the same amount of data inside of the EPC. 
 
 > Optimizing the number of **external memory** page swaps is crucial for enhancing the performance of applications running in TEEs.
 <p></p>
 
 ![A graph showing the time of several operations in SGXv2 relative to moving a page in enclave memory. Moving swapping to unprotected RAM is about 47x slower, while swapping to disk is 80x slower.](intrinsics.png)
-**Figure 1** - *Cost of PageSwap operation of 4KB relative to a MOV of 4KB inside of enclave protected memory. A page swap is about 47
+**Figure 2** - *Cost of PageSwap operation of 4KB relative to a MOV of 4KB inside of enclave protected memory. A page swap is about 47
 times more expensive than moving 4KB in memory within the enclave.
 The costs are color-coded which shows the cost breakdown, blue is the cost of EWB/OCall.* **EWB** *- enclave write back (the mechanism used by the operating system to swap enclave pages),* **OCall** - *using SGX*\'s *OCall mechanism so the enclave application manually swaps pages*.
 <p></p>
@@ -222,12 +222,12 @@ PathORAM has two major structures:
 
 1) **Stash** - where we keep recently accessed blocks. The stash has a constant maximum size and is accessed using linear scans.
 
-2) **ORAM Tree** (Figure 2) - an almost[^acbst] complete binary tree with \\(N\\) leaves where each node is called a Bucket and can have up to `Z` (typically `Z=4`) blocks of data. Whenever we access this tree, we will leak which nodes are being accessed in the trace.
+2) **ORAM Tree** (Figure 3) - an almost[^acbst] complete binary tree with \\(N\\) leaves where each node is called a Bucket and can have up to `Z` (typically `Z=4`) blocks of data. Whenever we access this tree, we will leak which nodes are being accessed in the trace.
 
 The `position` mentioned in the PathORAM interface identifies a unique path from the root to a leaf in this tree. If an address has a given position, then its block can be stored in any bucket on the path corresponding to that position.
 
 ![A visualization of ORAM](orambasic.png)
-**Figure 2** - *A visualization of PathORAM tree with `Z=4` where path 2 - the path with all the buckets that could contain position 2 is highlighted.*
+**Figure 3** - *A visualization of PathORAM tree with `Z=4` where path 2 - the path with all the buckets that could contain position 2 is highlighted.*
 
 When we construct the ORAM, every address is assigned a random `position`, and is placed in some bucket in the corresponding path[^readpathoram]. When the access operation is called, the PathORAM algorithm does the following steps:
 
@@ -247,13 +247,13 @@ Let\'s see now how can we keep track of the node positions for a binary search t
 ## Oblivious Data Structures {#keeptrackofpositions}
 
 In order to keep track of the positions of all the nodes in a binary search tree, we can use an insight from the Oblivious Data Structures (ODS) paper [\[2\]](#cite):
-> **We only need to store the position of the root node** - since every operation in a binary search tree always accesses the nodes starting from the root of the binary search tree, we can store in each node the position of its two children directly (See Figure 3).
+> **We only need to store the position of the root node** - since every operation in a binary search tree always accesses the nodes starting from the root of the binary search tree, we can store in each node the position of its two children directly (See Figure 4).
 <p></p>
 
 This works, since when we want to access the children of a node, we can generate ahead of time the new random position for its children and store it in the parent before actually accessing the children. 
 
 ![AVL Tree and how it is mapped to ORAM](avloram.png)
-**Figure 3** - *A visualization of the logical AVL tree and how it is mapped to the PathORAM tree. We only need to keep track that node 42 is in position 2. Its children (node 20 and 73) have their position information (2 and 7 respectively) stored inside node 42.*
+**Figure 4** - *A visualization of the logical AVL tree and how it is mapped to the PathORAM tree. We only need to keep track that node 42 is in position 2. Its children (node 20 and 73) have their position information (2 and 7 respectively) stored inside node 42.*
 
 This insight from ODS was previously implemented by P. Mishra et al in Oblix [\[5\]](#cite), where an oblivious AVL tree was used to develop an oblivious map. **In ENIGMAP, we build on the insight from ODS to develop an oblivious AVL tree, with practical optimizations related to TEEs.**
 
@@ -261,7 +261,7 @@ This insight from ODS was previously implemented by P. Mishra et al in Oblix [\[
 
 Our main contributions with ENIGMAP are:
 
-1) Identifying external memory accesses as an important cost of oblivious algorithms in TEEs (Figure 1).
+1) Identifying external memory accesses as an important cost of oblivious algorithms in TEEs (Figure 2).
 
 2) An asymptotically and concretely faster *strongly oblivious* sorted map both in number of instructions executed as well as external memory accesses (section [Main Query Optimizations](#mainqueryoptimizations)).
 
@@ -275,17 +275,17 @@ So, let\'s take a look at a few of the optimizations done in ENIGMAP!
 
 To improve the locality of data accesses, ENIGMAP leverages concepts from cache-oblivious algorithms and van Emde Boas (vEB) layout [\[8\]](:cite). By organizing the ORAM tree in a cache-efficient manner, we reduce the number of page swaps needed to access a path, significantly improving access times[^btwnotonlyexternalmemory].
 
-When we want to access an AVL tree node, we need to call `Access` on the ORAM to get that AVL tree node (recall from Figure 3 that each AVL node is stored in the ORAM), and therefore we will have to read all the Buckets in the path where that AVL tree node is stored. In the external-memory these buckets will be stored in pages, which are read atomically, but typically can include \\(B\\) buckets. 
+When we want to access an AVL tree node, we need to call `Access` on the ORAM to get that AVL tree node (recall from Figure 4 that each AVL node is stored in the ORAM), and therefore we will have to read all the Buckets in the path where that AVL tree node is stored. In the external-memory these buckets will be stored in pages, which are read atomically, but typically can include \\(B\\) buckets. 
 
-If we were to store the buckets in heap layout - this is level by level left to right - we would have to read \\( log{N} \\) pages, since apart from the first few levels, all the buckets would end up in different pages (see Heap Layout in Figure 4).
+If we were to store the buckets in heap layout - this is level by level left to right - we would have to read \\( log{N} \\) pages, since apart from the first few levels, all the buckets would end up in different pages (see Heap Layout in Figure 5).
 
-> Instead, ENIGMAP uses a locality friendly layout[^noteembdaboas] - we find out the size of the largest ORAM subtree that fits in a page (its height is \\( \lf log_2{B} \rf \\) ) and store subtrees of that size together in the disk page (see Our Layout in Figure 4) . This optimization allows to only have to read \\( log{\frac{N}{B}} \\) pages per ORAM access.
+> Instead, ENIGMAP uses a locality friendly layout[^noteembdaboas] - we find out the size of the largest ORAM subtree that fits in a page (its height is \\( \lf log_2{B} \rf \\) ) and store subtrees of that size together in the disk page (see Our Layout in Figure 5) . This optimization allows to only have to read \\( log{\frac{N}{B}} \\) pages per ORAM access.
 <p></p>
 
 
 <!-- TODO: replace our layout with ENIGMAP layout and switch sides -->
 ![alt text](treepacking.png)
-**Figure 4** - *Comparison of Heap Layout with the Layout used in ENIGMAP considering B=3. Each triangle/rectangle represents a disk page. Red - pages read while accessing the same certain path. To read a given path ENIGMAP reads an optimal number of pages (3 in the example), while the Heap layout will read one page per bucket (5 in the example).*
+**Figure 5** - *Comparison of Heap Layout with the Layout used in ENIGMAP considering B=3. Each triangle/rectangle represents a disk page. Red - pages read while accessing the same certain path. To read a given path ENIGMAP reads an optimal number of pages (3 in the example), while the Heap layout will read one page per bucket (5 in the example).*
 
 
 ### Optimization 2 - Ensuring integrity and freshness with low cost
@@ -293,7 +293,7 @@ If we were to store the buckets in heap layout - this is level by level left to 
 Another key optimization that comes from the locality friendly layout is that we can ensure integrity and freshness of data in external memory with almost no extra cost. Since we always access ORAM pages in a path from the root and each friendly-layout subtree corresponds to a disk page, we can build a Merkle tree of the friendly-layout subtrees. Each subtree is encrypted with AES-GCM, and stores the nonce of its children subtrees encryptions. The main application only needs to keep the nonce of the root subtree to ensure integrity and freshness.
 
 ![alt text](friendlylayout_integrity.png)
-**Figure 5** - *Achieving integrity protection efficiently in external memory on a tree can be done with a merkle-tree. The fact we have subtrees packed together allows us to have good nonce size to data size ratio.*
+**Figure 6** - *Achieving integrity protection efficiently in external memory on a tree can be done with a merkle-tree. The fact we have subtrees packed together allows us to have good nonce size to data size ratio.*
 
 ### Optimization 3 - Multi-level caching + batching
 
@@ -379,7 +379,7 @@ AddrPos Propagate(vectorExternalMemory<Node>& nodes, int left, int right) {
 Notice that the memory access pattern is oblivious since it depends only on the length of the array, and not on the content of the key-value pairs themselves. 
 
 <!--
-In Figure 6, we show how the algorithm proceeds. 
+In Figure deleted7, we show how the algorithm proceeds. 
 
 <!-- ![alt text](image.png)
 ![alt text](image-1.png)
@@ -388,7 +388,7 @@ In Figure 6, we show how the algorithm proceeds.
 ![alt text](image-4.png)
 ![alt text](image-5.png) --
 ![alt text](image_together.png)
-**Figure 6** - *Visualization of the propagate procedure. At each timestep at most \\(\log N\\) node are sticky (in blue).* 
+**Figure deleted7** - *Visualization of the propagate procedure. At each timestep at most \\(\log N\\) node are sticky (in blue).* 
 -->
 
 Apart from the initial sorting, each Phase 1 stage does a linear number of external memory accesses and computation steps. 
