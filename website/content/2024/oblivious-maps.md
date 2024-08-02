@@ -38,7 +38,7 @@ In a standard implementation, the app might upload your entire contact list to t
 
 One approach is to leverage Trusted Execution Environments (TEEs), like Intel SGX, to perform these operations securely on the server. TEEs create isolated environments where code and data can be processed without being accessible to the rest of the system. This means that even if the server\'s operating system is compromised, the information inside the TEE remains protected.
 
-By implementing an oblivious map inside a TEE, we can ensure that neither the app\'s server nor potential attackers learn anything about your contact list or which queries you performed. Being oblivious, no information is revealed from the CPU\'s memory access patterns, making it an ideal solution for privacy-preserving applications.
+By implementing an oblivious map inside a TEE, we can ensure that neither the app\'s server nor potential attackers learn anything about your contact list or which queries you performed. Being oblivious means that no information is revealed from the CPU\'s memory access patterns, making it an ideal solution for privacy-preserving applications.
 
 This blog post explores our research on ENIGMAP [\[6\]](#cite), an efficient external-memory oblivious map designed for secure enclaves, offering significant performance improvements over previous work. ENIGMAP enables privacy-preserving contact discovery and other applications by protecting sensitive data and queries from unauthorized access even from the operating system of the machine where ENIGMAP is running.
 
@@ -87,10 +87,10 @@ While AVL trees provide an efficient and well-structured way to manage key-value
 
 `Trusted Execution Environments` (TEEs), like Intel SGX, provide isolated execution environments for sensitive computations. They ensure that data and code running inside of a secure memory region called an `enclave` are protected from external tampering and observation, even if the operating system is compromised. However, TEEs come with limited secure memory, which poses a challenge for applications to handle large datasets securely.
 
-> The **"Enclave Assumption"** -- code inside an enclave runs under the crash-fault model (it either runs the correct computation or crashes, without unexpected behaviors); all of its memory contents are encrypted; and cannot be accessed by any other applications running on the same machine; and the speed of code execution is similar to if it was not inside of an enclave.
+> The **"Enclave Assumption"** -- code inside an enclave runs under the crash-fault model (it either runs the correct computation or crashes, without unexpected behaviors); all of its memory contents are encrypted and cannot be accessed by any other applications running on the same machine; and the speed of code execution is similar to if it was not inside of an enclave.
 <p></p>
 
-To manage datasets that don\'t fit in the TEE, data must frequently be swapped between the secure enclave memory - called Enclave Page Cache (EPC) - and insecure **external memory** (RAM or disk). This swapping process, known as page swapping, can significantly impact performance due to the overhead of moving data in and out of the enclave, context switching, and the need to encrypt and decrypt data during these transfers. In fact, we manually measured the cost of **external memory** accesses (Figure 2) - in SGXv2 copying a page from **external memory** to the EPC is about 47x-80x slower than copying the same amount of data inside of the EPC. 
+To manage datasets that don\'t fit in the TEE, data must frequently be swapped between the secure enclave memory - called the Enclave Page Cache (EPC) - and insecure **external memory** (RAM or disk). This swapping process, known as page swapping, can significantly impact performance due to the overhead of moving data in and out of the enclave, context switching, and the need to encrypt and decrypt data during these transfers. In fact, we manually measured the cost of **external memory** accesses (Figure 2) - in SGXv2 copying a page from **external memory** to the EPC is about 47x-80x slower than copying the same amount of data inside of the EPC. 
 
 > Optimizing the number of **external memory** page swaps is crucial for enhancing the performance of applications running in TEEs.
 <p></p>
@@ -158,7 +158,7 @@ bool check_password_oblivious(char input[PASSWORD_SIZE]) {
     return ret;
 }
 ```
-**Listing 2** - *An oblivious version of the check_password function - the memory access trace is now constant*
+**Listing 2** - *An oblivious version of the check_password function - the memory access trace is now constant.[^andcppshortcircuits]*
 
 If you are familiar with *constant-time cryptography* you probably noticed that this oblivious algorithm is in fact also a [constant-time algorithm](https://www.bearssl.org/constanttime.html). These two notions are closely related - if an attacker knows the number of memory addresses accessed, then the attacker has the information needed for timing attacks. 
 
@@ -205,7 +205,7 @@ void Access(bool readOrWrite, int addr, int& pos, int& data)
 > Performs a read or write operation (`readOrWrite`) on the specified address `addr` reading or writing to `data`. The position `pos` has information about where the specified address is stored and is updated for `addr` after each call to access. It is up to the callee to keep track of `pos` for each address[^readpathoram].
 <p></p>
  
-In PathORAM each address is assigned a random position in {0..N} that identifies where that address is stored in public memory (we will see how soon). This position is leaked after each access call, therefore after each access call a new random position is generated for that address. (We will explain how to keep track of all the positions for a binary search tree in the next section - [Oblivious Data Structures](#keeptrackofpositions) - for now, just assume there is a way to keep track of all the positions for each address)
+In PathORAM each address is assigned a random position in {0..N} that identifies where that address is stored in public memory (we will see how soon). This position is leaked after each access call; therefore after each access call, a new random position is generated for that address. (We will explain how to keep track of all the positions for a binary search tree in the next section - [Oblivious Data Structures](#keeptrackofpositions) - for now, just assume there is a way to keep track of the position for each address)
 
 ### How PathORAM works
 
@@ -255,7 +255,7 @@ This works, since when we want to access the children of a node, we can generate
 ![AVL Tree and how it is mapped to ORAM](avloram.png)
 **Figure 4** - *A visualization of the logical AVL tree and how it is mapped to the PathORAM tree. We only need to keep track that node 42 is in position 2. Its children (node 20 and 73) have their position information (2 and 7 respectively) stored inside node 42.*
 
-This insight from ODS was previously implemented by P. Mishra et al in Oblix [\[5\]](#cite), where an oblivious AVL tree was used to develop an oblivious map. **In ENIGMAP, we build on the insight from ODS to develop an oblivious AVL tree, with practical optimizations related to TEEs.**
+This insight from ODS was previously implemented by P. Mishra et al. in Oblix [\[5\]](#cite), where an oblivious AVL tree was used to develop an oblivious map. **In ENIGMAP, we build on the insight from ODS to develop an oblivious AVL tree, with practical optimizations related to TEEs.**
 
 # ENIGMAP
 
@@ -525,7 +525,7 @@ ENIGMAP\'s Oblivious Sorted Map has a broad range of applications:
 + **Secure Databases**: A sorted map can be used to build databases that protect the privacy of user queries. This is especially relevant for sensitive data such as medical records, financial transactions, and personal communication logs.
 + **Private Contact Discovery**: Similar to the use case implemented by Signal, ENIGMAP can help in securely finding mutual contacts without revealing the contact list to the server.
 + **Cloud Computing**: With the increasing reliance on cloud services, ensuring data privacy and security is paramount. ENIGMAP allows users to securely store and query data on untrusted cloud servers while maintaining the confidentiality of their access patterns. In this setting the external memory is no longer RAM or Disk, but the remote cloud server itself.
-+ **Multi-party computations**: MPC and Fully Homomorphic Encryption (FHE) provide encrypted computations similar to Intel SGX, but rely on strong cryptographic primitives rather than trusting hardware vendors like Intel. In MPC, it is crucial for algorithms to be oblivious to prevent information leakage through data access patterns. Traditionally, maps in MPC have been implemented using linear scans or an online phase of Private Information Retrieval (PIR) or Oblivious RAM (ORAM). ENIGMAP can serve as an efficient implementatino of online ORAM in MPC and offering significant performance enhancements.
++ **Multi-party computations (MPC)**: MPC and Fully Homomorphic Encryption (FHE) provide encrypted computations similar to Intel SGX, but rely on strong cryptographic primitives rather than trusting hardware vendors like Intel. In MPC, it is crucial for algorithms to be oblivious to prevent information leakage through data access patterns. Traditionally, maps in MPC have been implemented using linear scans or an online phase of Private Information Retrieval (PIR) or Oblivious RAM (ORAM). ENIGMAP can serve as an efficient implementation of online ORAM in MPC, offering significant performance enhancements.
 
 
 While ENIGMAP presents significant advancements, it also comes with certain limitations to address in future work:
@@ -547,6 +547,8 @@ Our code [is available on github](https://github.com/odslib/odsl), as well as on
 [^gowiki]: To learn how each of the operations are implemented, the [wikipedia page on AVL trees](https://en.wikipedia.org/wiki/AVL_tree) is a great starting point.
 
 [^boundedheightimportant]: Having a bounded height and number of nodes that are touched during an operation is needed so that the time it takes to do a query doesn\'t leak information about the query. Since the tree depth is at most \\( 1.44 \log_2 N\\), we can make every `Search` operation always touch \\( 1.44 \log_2 N\\) nodes, potentially accessing fake nodes after we found the `key` we were looking for.
+
+[^andcppshortcircuits]: We need to use `*` instead of `&&` because in C++ the `&&` operator short circuits.
 
 [^pagelevel]: The granularity of the public memory access trace for Intel SGX is typically at the page level (4KB pages). 
 
@@ -570,7 +572,7 @@ Our code [is available on github](https://github.com/odslib/odsl), as well as on
 
 [^largeepcbad]: These larger EPC sizes have weaker security guarantees - EPC memory in RAM no longer has a freshness check, therefore the hardware TCB is no longer just the CPU, but all of the machine hardware instead. There has been a shift in industry interest towards larger enclaves sizes recently as they become available on cloud datacenters. The assumption of trusting the hardware is addressed by a "proof of cloud" - a cloud provider signs they are running the enclave and, since there is pottentially a huge economical loss if the cloud providers lies, developers can trust the hardware is not being tampered with. Since this is now a utility-based model, in large EPCs, trusting an SGX enclave will follow the Crash-Fault model is now risk management rather than an expected guarantee.
 
-[^nooblixlargeepc]: Results on the Oblix paper are not reported for database sizes over \\(2^{30}\\), but even using the time for \\(2^{28}\\), we achieve a speedup of at least x53, which further increases with database size. 
+[^nooblixlargeepc]: The oblix paper does not report results for database sizes over \\(2^{30}\\), but even using the time for \\(2^{28}\\), we achieve a speedup of at least 53x, which further increases with database size. 
 
 [^notallhopelost]: Not all hope is lost in terms of initialization time; from our ongoing experiments, we believe the initialization time for binary search trees can be further improved, if we move away from AVL trees.
 
