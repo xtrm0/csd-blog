@@ -293,7 +293,7 @@ If we were to store the buckets in heap layout - this is level by level left to 
 Another key optimization that comes from the locality friendly layout is that we can ensure integrity and freshness of data in external memory with almost no extra cost. Since we always access ORAM pages in a path from the root and each friendly-layout subtree corresponds to a disk page, we can build a Merkle tree of the friendly-layout subtrees. Each subtree is encrypted with AES-GCM, and stores the nonce of its children subtrees encryptions. The main application only needs to keep the nonce of the root subtree to ensure integrity and freshness.
 
 ![alt text](friendlylayout_integrity.png)
-**Figure 6** - *Achieving integrity protection efficiently in external memory on a tree can be done with a merkle-tree. The fact we have subtrees packed together allows us to have good nonce size to data size ratio.*
+**Figure 6** - *Achieving integrity protection efficiently in external memory on a tree can be done with a Merkle-tree. The fact we have subtrees packed together allows us to have good nonce-size to data-size ratio.*
 
 ### Optimization 3 - Multi-level caching + batching
 
@@ -374,7 +374,7 @@ AddrPos Propagate(vectorExternalMemory<Node>& nodes, int left, int right) {
 ```
 **Listing 5** - *Propagate procedure pseudocode*
 
-`Propagate` will be called once for each node. Every time we access a node, we mark it as sticky it so it won't be swapped into external memory and then recurse on each child to get its position and keep updating the indices. This means each node will be transferred at most once from external memory, and at any given time we will only have at most \\(\log N\\) nodes marked as sticky - since that is the maximum tree depth. Therefore, this algorithm will incur at most \\(N\\) external memory transfers.
+`Propagate` will be called once for each node. Every time we access a node, we mark it as sticky it so it won\'t be swapped into external memory and then recurse on each child to get its position and keep updating the indices. This means each node will be transferred at most once from external memory, and at any given time we will only have at most \\(\log N\\) nodes marked as sticky - since that is the maximum tree depth. Therefore, this algorithm will incur at most \\(N\\) external memory transfers.
 
 Notice that the memory access pattern is oblivious since it depends only on the length of the array, and not on the content of the key-value pairs themselves. 
 
@@ -558,9 +558,9 @@ Our code [is available on github](https://github.com/odslib/odsl), as well as on
 
 [^readpathoram]: I suggest reading the PathORAM paper [\[1\]](#cite) for more details on why the stack size is kept constant, how initialization works, and the recursive ORAM technique used to keep track of the positions of all the addresses.
 
-[^btwnotonlyexternalmemory]: This locality-friendly layout is useful also in the scenario where we don't have a disk, since it can also translate to RAM pages that don't need to be cached, or it can also make trees with smaller nodes fit in CPU cache lines directly.
+[^btwnotonlyexternalmemory]: This locality-friendly layout is useful also in the scenario where we don\'t have a disk, since it can also translate to RAM pages that don\'t need to be cached, or it can also make trees with smaller nodes fit in CPU cache lines directly.
 
-[^noteembdaboas]: This is not the Embe Boas layout - we don't need to be cache-agnostic, since we know the page size for disk and SGX - and can even experimentally measure it, as you can find in our paper.
+[^noteembdaboas]: This is not the Embe Boas layout - we don\'t need to be cache-agnostic, since we know the page size for disk and SGX - and can even experimentally measure it, as you can find in our paper.
 
 [^sgxv2tdxbad]: This cache is not as useful in SGXv2/TDX, since all the RAM can be used as part of the enclave.
 
