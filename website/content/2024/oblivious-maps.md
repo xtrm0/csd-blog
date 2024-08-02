@@ -141,18 +141,14 @@ bool check_password_nonoblivious(char input[PASSWORD_SIZE]) {
 ```
 **Listing 1** - *A non-oblivious version of the check_password function - based on the number of instructions executed an attacker can learn the size of the common prefix between CORRECT and input*
 
-In *Listing 1*, the attacker can infer how many initial characters of the input are correct based on the number of memory accesses that `check_password` used - therefore it is not an oblivious algorithm. To make it oblivious, we can make use of the Conditional Mov x86 instruction - `CMOV(cond, target, value)`. 
+In *Listing 1*, the attacker can infer how many initial characters of the input are correct based on the number of memory accesses that `check_password` used - therefore it is not an oblivious algorithm. To make it oblivious we can make the number of memory accesses independent of the input:
 
-> The `CMOV(cond, target, value)` instruction assigns `value` to `target` if `condition` is true, but always fetches `target` and `value` from memory, resulting in a constant memory trace.
-<p></p>
-
-Here is the same code made oblivious with `CMOV`:
 ```c++
 bool check_password_oblivious(char input[PASSWORD_SIZE]) {
     bool ret = true;
     for (int i=0; i<PASSWORD_SIZE; i++) {
         bool condition = CORRECT[i] != input[i];
-        CMOV(condition, ret, false);
+        ret = ret * condition; // if (!condition) ret = false;
     }
     return ret;
 }
@@ -170,7 +166,10 @@ int access_array_nonoblivious(int Array[MAX_SIZE], int i) {
 ```
 **Listing 3** - *A non-oblivious array access*
 
-When we call `access_array_nonoblivious`, we will access the memory address `(A+i)`. If an the attacker can see every address we use, then the attacker can learn if two calls to this function have the same arguments. To protect against this, we could again rely on a constant time algorithm - by scanning the entire array every time we need to access a single index:
+When we call `access_array_nonoblivious`, we will access the memory address `(A+i)`. If an the attacker can see every address we use, then the attacker can learn if two calls to this function have the same arguments. To protect against this, we could again rely on a constant time algorithm - by scanning the entire array every time we need to access a single index,making use of the Conditional Mov x86 instruction - `CMOV(cond, target, value)`. 
+
+> The `CMOV(cond, target, value)` instruction assigns `value` to `target` if `condition` is true, but always fetches `target` and `value` from memory, resulting in a constant memory trace. 
+<p></p>
 
 ```c++
 int access_array_linear_scan(int Array[MAX_SIZE], int index) {
@@ -198,10 +197,10 @@ PathORAM provides a straightforward interface:
 ```c++
 void Access(bool readOrWrite, int addr, int& pos, int& data)
 ```
-> Performs a read or write operation (`readOrWrite`) on the specified address `addr` which is at the position `pos`, reading or writing to `data`. 
+> Performs a read or write operation (`readOrWrite`) on the specified address `addr` reading or writing to `data`. The position `pos` has information about where the specified address is stored and is updated for `addr` after each call to access. It is up to the callee to keep track of `pos` for each address[^readpathoram].
 <p></p>
-
-Each address is assigned a random `pos` that reveals where an address is stored. Whenever an address is accessed, its `pos` is leaked since we access the locations related to that position, but a new random `pos` is generated for that address. From the memory access trace, we can only see a sequence of random positions being accessed.
+ 
+In PathORAM each address is assigned a random position in {0..N} that identifies where that address is stored in public memory (we will see how soon). This position is leaked after each access call, therefore after each access call a new random position is generated for that address. (We will explain how to keep track of all the positions for a binary search tree in the next section - [Oblivious Data Structures](#keeptrackofpositions) - for now, just assume there is a way to keep track of all the positions for each address)
 
 ### How PathORAM works
 
@@ -220,14 +219,14 @@ PathORAM has two major structures:
 
 2) **ORAM Tree** (Figure 2) - an almost[^acbst] complete binary tree with \\(N\\) leaves where each node is called a Bucket and can have up to `Z` (typically `Z=4`) blocks of data. Whenever we access this tree, we will leak which nodes are being accessed in the trace.
 
-The `position` mentioned in the PathORAM interface identifies a unique path from the root to a leaf in this tree.
+The `position` mentioned in the PathORAM interface identifies a unique path from the root to a leaf in this tree. If an address has a given position, then its block can be stored in any bucket on the path corresponding to that position.
 
 ![A visualization of ORAM](orambasic.png)
 **Figure 2** - *A visualization of PathORAM tree with `Z=4` where path 2 - the path with all the buckets that could contain position 2 is highlighted.*
 
-When we construct the ORAM, every address is assigned a random `position` which we need to keep track of (we will explain how we do this later for a binary search tree in the next section - [Oblivious Data Structures](#keeptrackofpositions)) and will later be placed in some bucket in that path from root to a leaf. When the access operation is called, the PathORAM algorithm does the following steps:
+When we construct the ORAM, every address is assigned a random `position`, and is placed in some bucket in the corresponding path[^readpathoram]. When the access operation is called, the PathORAM algorithm does the following steps:
 
-1) **Read Path** - Reads all the buckets on the path identified by the original position of the address to the stash.
+1) **Read Path** - Move, from the ORAM tree to the stash, all the blocks on the path identified by the original position of the address.
 
 2) **Generate new position** - Generate a new random position for the address we just accessed.
 
@@ -552,7 +551,7 @@ Our code [is available on github](https://github.com/odslib/odsl), as well as on
 
 [^infoconstant]: The failure probability is negligible in the stash size - the probability of the stash becoming larger than K after an operation is  \\( o(2^{-K}) \\) [\[1\]](#cite).
 
-[^readpathoram]: I suggest reading the PathORAM paper [\[1\]](#cite) for more details on why the stack size is kept constant, how initialization works, and the recursive ORAM technique used to store the positions of all the addresses.
+[^readpathoram]: I suggest reading the PathORAM paper [\[1\]](#cite) for more details on why the stack size is kept constant, how initialization works, and the recursive ORAM technique used to keep track of the positions of all the addresses.
 
 [^btwnotonlyexternalmemory]: This locality-friendly layout is useful also in the scenario where we don't have a disk, since it can also translate to RAM pages that don't need to be cached, or it can also make trees with smaller nodes fit in CPU cache lines directly.
 
