@@ -572,7 +572,7 @@ Our code [is available on github](https://github.com/odslib/odsl), as well as on
 
 [^largeepcbad]: These larger EPC sizes have weaker security guarantees - EPC memory in RAM no longer has a freshness check, therefore the hardware TCB is no longer just the CPU, but all of the machine hardware instead. There has been a shift in industry interest towards larger enclaves sizes recently as they become available on cloud datacenters. The assumption of trusting the hardware is addressed by a "proof of cloud" - a cloud provider signs they are running the enclave and, since there is pottentially a huge economical loss if the cloud providers lies, developers can trust the hardware is not being tampered with. Since this is now a utility-based model, in large EPCs, trusting an SGX enclave will follow the Crash-Fault model is now risk management rather than an expected guarantee.
 
-[^nooblixlargeepc]: The oblix paper does not report results for database sizes over \\(2^{30}\\), but even using the time for \\(2^{28}\\), we achieve a speedup of at least 53x, which further increases with database size. 
+[^nooblixlargeepc]: The Oblix paper does not report results for database sizes over \\(2^{30}\\), but even using the time for \\(2^{28}\\), we achieve a speedup of at least 53x, which further increases with database size. 
 
 [^notallhopelost]: Not all hope is lost in terms of initialization time; from our ongoing experiments, we believe the initialization time for binary search trees can be further improved, if we move away from AVL trees.
 
