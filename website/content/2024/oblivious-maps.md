@@ -32,10 +32,15 @@ committee = [
 \gdef\rf{\\right \\rfloor}
 \\]
 
+Imagine using a popular messaging app that includes a contact discovery feature to find which of your phone contacts are already using the service and to get information on how to communicate with them. While convenient, this process raises significant privacy concerns: how can you discover mutual contacts without revealing your entire contact list to the messaging app\'s server?
 
-Imagine a privacy-conscious client who wants to query a key-value store on an untrusted server equipped with a secure processor, such as an SGX processor. Being privacy-conscious, the client wants to learn the results of the queries, but an attacker running the server should not learn which queries the client performed.
+In a standard implementation, the app might upload your entire contact list to the server to perform the matching, potentially exposing sensitive information to unauthorized access. To address this issue, we need a solution that allows for secure contact discovery without compromising user privacy.
 
-To efficiently protect the privacy of the client\'s queries and of the database itself, we can implement an oblivious map inside a secure enclave. This blog post explores our research on ENIGMAP [\[6\]](#cite), an efficient external-memory oblivious map designed for secure enclaves, offering significant performance improvements over previous work. 
+One approach is to leverage Trusted Execution Environments (TEEs), like Intel SGX, to perform these operations securely on the server. TEEs create isolated environments where code and data can be processed without being accessible to the rest of the system. This means that even if the server\'s operating system is compromised, the information inside the TEE remains protected.
+
+By implementing an oblivious map inside a TEE, we can ensure that neither the app\'s server nor potential attackers learn anything about your contact list or which queries you performed. The oblivious map allows the server to perform operations without revealing any information from the CPU\'s memory access patterns, making it an ideal solution for privacy-preserving applications.
+
+This blog post explores our research on ENIGMAP [\[6\]]{#cite}, an efficient external-memory oblivious map designed for secure enclaves, offering significant performance improvements over previous work. ENIGMAP enables privacy-preserving contact discovery and other applications by protecting sensitive data and queries from unauthorized access even from the operating system of the machine where ENIGMAP is running.
 
 # Background
 Before we can dive into the details of ENIGMAP, we first need to understand a few basic concepts, including sorted maps, background on TEEs, external-memory and oblivious algorithms.
