@@ -21,9 +21,9 @@ author = {name = "Meng-Chieh Lee", url = "https://mengchillee.github.io/" }
 # The committee specification is simply a list of strings.
 # However, you can also make an object with fields like in the author.
 committee = [
-    "Jignesh Patel",
-    "David Touretzky",
-    "Ananya Joshi"
+    {name = "Jignesh Patel", url = "https://csd.cmu.edu/people/faculty/jignesh-patel"},
+    {name = "David Touretzky", url = "http://www.cs.cmu.edu/~dst/"},
+    {name = "Ananya Joshi", url = "https://csd.cmu.edu/people/doctoral-student/ananya-joshi"}
 ]
 +++
 
