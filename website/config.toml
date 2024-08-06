@@ -1,5 +1,5 @@
 # Basic configuration
-base_url = "http://cmublogpost.xtrm0.com:1111/"
+base_url = "https://www.cs.cmu.edu/~csd-phd-blog/"
 title = "CMU CSD PhD Blog"
 description = ""
 default_language = "en"
